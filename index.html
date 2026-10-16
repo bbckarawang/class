@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rupiah Amount Listening Quiz</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f7f6; margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .card { background: white; max-width: 500px; width: 100%; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    h1 { font-size: 20px; color: #333; text-align: center; margin-bottom: 20px; }
+    label { font-weight: bold; color: #555; display: block; margin-top: 15px; }
+    input[type="text"] { width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+    .question-box { background: #eef2f5; padding: 15px; border-radius: 8px; margin-top: 15px; }
+    .btn { background: #007bff; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+    .btn:hover { background: #0056b3; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+    .hidden { display: none; }
+    .status-msg { text-align: center; font-weight: bold; color: #28a745; margin-top: 15px; font-size: 18px; }
+    .loader { text-align: center; font-style: italic; color: #666; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Rupiah Amount Listening Quiz</h1>
+
+  <!-- Student Identification Form -->
+  <div id="step-name">
+    <label for="student-name">Enter Your Full Name:</label>
+    <input type="text" id="student-name" placeholder="e.g. John Doe" required>
+    <button class="btn" onclick="startQuiz()">Start Quiz</button>
+  </div>
+
+  <!-- 10 Questions Quiz Form -->
+  <div id="step-quiz" class="hidden">
+    <p style="font-size: 14px; color: #666;">Listen to the amounts dictated by your coach, then type the numbers below (e.g. 15,000 or 15000).</p>
+    
+    <div id="questions-container"></div>
+    
+    <button id="submit-btn" class="btn" onclick="submitQuiz()">Submit Answers</button>
+    <div id="loading-msg" class="loader hidden">Submitting answers to Google Sheets...</div>
+  </div>
+
+  <!-- Post-Submit Screen -->
+  <div id="step-result" class="hidden">
+    <h2>Thank You!</h2>
+    <p>Your answers have been successfully submitted to your coach.</p>
+    <div class="status-msg" id="score-display"></div>
+  </div>
+</div>
+
+<script>
+  // 10 Answer Keys (Clean Numbers Only)
+  const answerKey = {
+    q1: "15000",
+    q2: "50000",
+    q3: "150000",
+    q4: "375000",
+    q5: "1500000",
+    q6: "12350000",
+    q7: "100000",
+    q8: "2500000",
+    q9: "35000",
+    q10: "555555555"
+  };
+
+  // CONFIGURATION: Google Apps Script Web App URL
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyZ25hSTjdxVGz45kB3c9VleDBynPmw5Ohbh-PuKPSSM8LJpydVJ8z3KW7JnBdLs4U/exec";
+
+  let studentName = "";
+
+  function startQuiz() {
+    const nameInput = document.getElementById("student-name").value.trim();
+    if (!nameInput) {
+      alert("Please enter your name first!");
+      return;
+    }
+    studentName = nameInput;
+
+    document.getElementById("step-name").classList.add("hidden");
+    document.getElementById("step-quiz").classList.remove("hidden");
+
+    renderQuestions();
+  }
+
+  function renderQuestions() {
+    const container = document.getElementById("questions-container");
+    let html = "";
+    for (let i = 1; i <= 10; i++) {
+      html += `
+        <div class="question-box">
+          <label>Question ${i}:</label>
+          <input type="text" id="q${i}" placeholder="Enter amount..." autocomplete="off" oninput="formatNumberInput(this)">
+        </div>
+      `;
+    }
+    container.innerHTML = html;
+  }
+
+  // Real-time Number Formatting Function (Adds comma as thousand separator)
+  function formatNumberInput(input) {
+    // Remove all non-digit characters
+    let value = input.value.replace(/\D/g, "");
+    if (value) {
+      // Add thousands separator (comma)
+      input.value = Number(value).toLocaleString("en-US");
+    } else {
+      input.value = "";
+    }
+  }
+
+  function submitQuiz() {
+    const submitBtn = document.getElementById("submit-btn");
+    const loadingMsg = document.getElementById("loading-msg");
+
+    submitBtn.disabled = true;
+    loadingMsg.classList.remove("hidden");
+
+    let score = 0;
+    let details = [];
+
+    for (let i = 1; i <= 10; i++) {
+      const rawUserAns = document.getElementById(`q${i}`).value.trim();
+      // Strip out dots and commas to compare clean numeric values
+      const cleanUserAns = rawUserAns.replace(/[,.]/g, "");
+      const correctAns = answerKey[`q${i}`];
+      
+      if (cleanUserAns === correctAns) {
+        score += 10;
+        details.push(`Q${i}: Correct (${cleanUserAns})`);
+      } else {
+        details.push(`Q${i}: Incorrect (${cleanUserAns || 'Empty'} | Correct: ${correctAns})`);
+      }
+    }
+
+    // JSON Payload for Google Apps Script
+    const payload = {
+      nama: studentName,
+      skor: score,
+      detail: details.join(" | ")
+    };
+
+    // Send data via Fetch API
+    fetch(WEB_APP_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain"
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(() => {
+      document.getElementById("step-quiz").classList.add("hidden");
+      document.getElementById("step-result").classList.remove("hidden");
+      document.getElementById("score-display").innerText = `Your Score: ${score} / 100`;
+    })
+    .catch(err => {
+      alert("Failed to submit answers. Please check your internet connection.");
+      submitBtn.disabled = false;
+      loadingMsg.classList.add("hidden");
+      console.error(err);
+    });
+  }
+</script>
+
+</body>
+</html>
