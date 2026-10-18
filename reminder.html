@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Group Reminder Generator - BBC</title>
+    
+    <!-- FAVICON ICON (DARI GOOGLE DRIVE) -->
+    <link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1CcVl--rpzsy27Nu84gyBGIg9JZiCbwd3">
+    <link rel="shortcut icon" type="image/png" href="https://lh3.googleusercontent.com/d/1CcVl--rpzsy27Nu84gyBGIg9JZiCbwd3">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        textarea::-webkit-scrollbar { width: 5px; }
+        textarea::-webkit-scrollbar-thumb { background-color: #fca5a5; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
+
+    <!-- STICKY HEADER -->
+    <header class="sticky top-0 z-40 bg-red-700 text-white shadow-md border-b-4 border-red-900 shrink-0">
+        <div class="max-w-7xl mx-auto px-4 py-2 sm:px-6 lg:px-8 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white p-1.5 rounded-xl shadow-md text-red-600 flex items-center justify-center">
+                    <i class="fa-brands fa-whatsapp text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                        Reminder Generator WA
+                        <span class="text-[10px] bg-red-900/80 text-red-100 px-1.5 py-0.5 rounded border border-red-500/30">BBC</span>
+                    </h1>
+                    <p class="text-[11px] text-red-100">Sistem Pengiriman Pesan Kursus Bahasa Inggris BBC</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div id="statusBadge" class="hidden sm:flex items-center bg-red-800/80 px-2.5 py-1 rounded-full text-xs font-medium text-red-100 border border-red-500/40">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse mr-2"></span>
+                    <span id="statusText">Menghubungkan...</span>
+                </div>
+
+                <div class="bg-white p-1 rounded-lg shadow-md border border-red-100 flex items-center justify-center">
+                    <img src="https://lh3.googleusercontent.com/d/1Wyj_9qvvNcHyCaK5_q4JwxN5zwMjzyiu" 
+                         alt="BBC Logo" 
+                         class="h-8 sm:h-9 w-auto object-contain rounded"
+                         onerror="this.onerror=null; this.src='https://drive.google.com/thumbnail?id=1Wyj_9qvvNcHyCaK5_q4JwxN5zwMjzyiu&sz=w500';">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-hidden">
+
+        <!-- LEFT PANEL -->
+        <section class="lg:col-span-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200/80 flex flex-col justify-between overflow-y-auto">
+            <div class="space-y-3">
+                <div class="border-b border-slate-100 pb-2 flex justify-between items-center">
+                    <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-red-600"></i> Pengaturan Pesan
+                    </h2>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="openEditTemplateModal()" class="text-[11px] text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-lg transition flex items-center gap-1 font-semibold cursor-pointer">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit
+                        </button>
+                        <button type="button" onclick="openTemplateModal()" class="text-[11px] text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition flex items-center gap-1 font-semibold cursor-pointer">
+                            <i class="fa-solid fa-plus"></i> Template Baru
+                        </button>
+                        <button type="button" onclick="loadSpreadsheetData()" class="text-[11px] text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition flex items-center gap-1 font-medium cursor-pointer">
+                            <i class="fa-solid fa-rotate-right" id="syncIcon"></i> Reload Data
+                        </button>
+                        <button type="button" onclick="resetForm()" class="text-[11px] text-slate-400 hover:text-red-600 transition flex items-center gap-1 cursor-pointer ml-1">
+                            <i class="fa-solid fa-eraser"></i> Reset
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 1. Pilih Template Pesan -->
+                <div>
+                    <label for="selectTemplate" class="block text-xs font-semibold text-red-950 mb-1">
+                        1. Pilih Template Pesan <span class="text-red-500">*</span>
+                    </label>
+                    <select id="selectTemplate" onchange="renderPreview()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg focus:ring-2 focus:ring-red-500 p-2 transition cursor-pointer">
+                        <option value="">-- Memuat Template Pesan... --</option>
+                    </select>
+                </div>
+
+                <!-- 2. Pilih Kelas -->
+                <div>
+                    <label for="selectKelas" class="block text-xs font-semibold text-red-950 mb-1">
+                        2. Pilih Kelas <span class="text-red-500">*</span>
+                    </label>
+                    <select id="selectKelas" onchange="onKelasChange()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg focus:ring-2 focus:ring-red-500 p-2 transition cursor-pointer">
+                        <option value="">-- Memuat Data Kelas... --</option>
+                    </select>
+                </div>
+
+                <!-- Detail Info Kelas -->
+                <div id="infoKelasBox" class="hidden bg-red-50/70 border border-red-100 p-2 rounded-lg text-xs text-red-900 space-y-0.5">
+                    <div class="flex justify-between"><span class="font-medium">Pengajar:</span> <span id="infoPengajar" class="font-semibold">-</span></div>
+                    <div class="flex justify-between"><span class="font-medium">Hari Default:</span> <span id="infoHari" class="font-semibold">-</span></div>
+                </div>
+
+                <hr class="border-slate-100 my-1">
+
+                <!-- 3. Edit Detail -->
+                <div class="space-y-2">
+                    <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Opsi Edit Detail</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                            <label for="inputJam" class="block text-[11px] font-medium text-slate-700 mb-0.5">
+                                <i class="fa-regular fa-clock text-slate-400 mr-1"></i> Jam / Waktu
+                            </label>
+                            <input type="text" id="inputJam" oninput="renderPreview()" placeholder="Contoh: 15:30 - 17:00" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg focus:ring-2 focus:ring-red-500 p-2 transition">
+                        </div>
+                        <div>
+                            <label for="inputRuangan" class="block text-[11px] font-medium text-slate-700 mb-0.5">
+                                <i class="fa-solid fa-door-open text-slate-400 mr-1"></i> Ruangan / Link
+                            </label>
+                            <input type="text" id="inputRuangan" oninput="renderPreview()" placeholder="Contoh: R.A-01" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg focus:ring-2 focus:ring-red-500 p-2 transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="inputCatatan" class="block text-[11px] font-medium text-slate-700 mb-0.5">
+                            Catatan / Modul Tambahan <span class="text-slate-400 font-normal">(Opsional)</span>
+                        </label>
+                        <input type="text" id="inputCatatan" oninput="renderPreview()" placeholder="Have a great class." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg focus:ring-2 focus:ring-red-500 p-2 transition">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL -->
+        <section class="lg:col-span-6 flex flex-col space-y-3 h-full overflow-hidden">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200/80 flex-1 flex flex-col min-h-0">
+                <div class="border-b border-slate-100 pb-2 flex justify-between items-center mb-2 shrink-0">
+                    <h2 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-eye text-red-600"></i> Preview Pesan
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="toggleEditBtn" onclick="togglePreviewLock()" class="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-medium rounded-lg transition flex items-center gap-1 cursor-pointer">
+                            <i id="lockIcon" class="fa-solid fa-lock"></i> <span id="lockStatusText">Buka Edit Teks</span>
+                        </button>
+                        <button type="button" onclick="copyOnlyText()" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition flex items-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-copy"></i> Salin Teks
+                        </button>
+                        <span id="charCount" class="text-xs font-mono text-slate-400">0 Karakter</span>
+                    </div>
+                </div>
+
+                <div class="relative flex-1 h-full min-h-0">
+                    <textarea id="previewTextarea" readonly class="w-full h-full p-3 bg-slate-900 text-slate-100 font-sans text-xs sm:text-sm rounded-xl border border-slate-700 focus:ring-2 focus:ring-red-500 focus:outline-none resize-none leading-relaxed transition-all" placeholder="Pilih Template Pesan dan Kelas di sebelah kiri untuk menampilkan preview..."></textarea>
+                </div>
+
+                <p id="previewLockInfo" class="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1 shrink-0">
+                    <i class="fa-solid fa-lock text-amber-500"></i> Preview terkunci. Klik <b>"Buka Edit Teks"</b> di atas jika ingin menyunting pesan secara manual.
+                </p>
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
+                <button type="button" onclick="executeSkema1()" class="group relative flex flex-col items-center justify-center p-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl shadow-md active:scale-[0.98] transition-all cursor-pointer">
+                    <div class="flex items-center gap-1.5 text-sm font-semibold">
+                        <i class="fa-solid fa-copy"></i>
+                        <span>Salin & Buka Grup WA</span>
+                    </div>
+                    <span class="text-[10px] text-emerald-100 opacity-90">Buka Link Kolom G Spreadsheet</span>
+                </button>
+
+                <button type="button" onclick="executeSkema2()" class="group relative flex flex-col items-center justify-center p-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl shadow-md active:scale-[0.98] transition-all cursor-pointer">
+                    <div class="flex items-center gap-2 text-sm font-semibold">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Direct Share WA</span>
+                    </div>
+                    <span class="text-[10px] text-red-100 opacity-90">Direct Share Pilih Chat WA</span>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL TAMBAH TEMPLATE BARU -->
+    <div id="templateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl p-5 w-full max-w-md shadow-2xl border border-slate-100 transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-2.5 mb-3">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-file-circle-plus text-red-600"></i> Tambah Template Pesan Baru
+                </h3>
+                <button type="button" onclick="closeTemplateModal()" class="text-slate-400 hover:text-slate-600 transition cursor-pointer">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Kategori Pesan</label>
+                    <input type="text" id="newKategori" placeholder="Contoh: Reminder Kelas, Info Libur" class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg p-2 focus:ring-2 focus:ring-red-500">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Judul Template</label>
+                    <input type="text" id="newJudul" placeholder="Contoh: Pengingat Tugas LKS" class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg p-2 focus:ring-2 focus:ring-red-500">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Isi Pesan Template <span class="text-slate-400 font-normal block text-[10px]">(Gunakan tag {Kelas}, {Jam}, {Jam_AMPM}, {Ruangan}, {Hari}, {Pengajar}, {Catatan})</span>
+                    </label>
+                    <textarea id="newIsi" rows="4" placeholder="Halo semuanya! Don't forget kelas {Kelas} hari ini jam {Jam_AMPM} di ruangan {Ruangan}. Pengajar: {Pengajar}..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg p-2 focus:ring-2 focus:ring-red-500 resize-none"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4 pt-2.5 border-t border-slate-100">
+                <button type="button" onclick="closeTemplateModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition cursor-pointer">Batal</button>
+                <button type="button" id="btnSubmitNew" onclick="submitNewLocalTemplate()" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-plus"></i> Tambahkan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDIT TEMPLATE -->
+    <div id="editTemplateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl p-5 w-full max-w-md shadow-2xl border border-slate-100 transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-2.5 mb-3">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-amber-600"></i> Edit Template Pesan
+                </h3>
+                <button type="button" onclick="closeEditTemplateModal()" class="text-slate-400 hover:text-slate-600 transition cursor-pointer">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Kategori Pesan</label>
+                    <input type="text" id="editKategori" placeholder="Contoh: Reminder Kelas, Info Libur" class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg p-2 focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Judul Template</label>
+                    <input type="text" id="editJudul" placeholder="Contoh: Pengingat Tugas LKS" class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg p-2 focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        Isi Pesan Template <span class="text-slate-400 font-normal block text-[10px]">(Gunakan tag {Kelas}, {Jam}, {Jam_AMPM}, {Ruangan}, {Hari}, {Pengajar}, {Catatan})</span>
+                    </label>
+                    <textarea id="editIsi" rows="5" class="w-full bg-slate-50 border border-slate-300 text-slate-800 rounded-lg p-2 focus:ring-2 focus:ring-amber-500 resize-none leading-relaxed"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4 pt-2.5 border-t border-slate-100">
+                <button type="button" onclick="closeEditTemplateModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition cursor-pointer">Batal</button>
+                <button type="button" id="btnSubmitUpdate" onclick="submitUpdateTemplate()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFIKASI -->
+    <div id="toast" class="fixed bottom-4 right-4 transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-3.5 py-2.5 rounded-xl shadow-2xl border border-slate-700 text-xs">
+        <div id="toastIcon" class="text-emerald-400 text-base">
+            <i class="fa-solid fa-check-circle"></i>
+        </div>
+        <div id="toastMessage" class="font-medium">Notifikasi</div>
+    </div>
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+        const SPREADSHEET_ID = "1h6aBbj5NXi9NIXBb-rXYcKO-NrW_R28g5r9IQzDaoaE";
+        // MASUKKAN URL WEB APP GOOGLE APPS SCRIPT HASIL DEPLOY DI SINI:
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby8KafDfKQBplcsehcR-JxOr1tmHNAsb8CpZiaIlQTad4o2UiUJB4tX0HJOeWbWJwQ/exec";
+
+        let TEMPLATES = [];
+        let KELAS = [];
+        let isPreviewUnlocked = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSpreadsheetData();
+            const previewArea = document.getElementById('previewTextarea');
+            if (previewArea) {
+                previewArea.addEventListener('input', (e) => {
+                    document.getElementById('charCount').textContent = `${e.target.value.length} Karakter`;
+                });
+            }
+        });
+
+        function loadSpreadsheetData() {
+            const syncIcon = document.getElementById('syncIcon');
+            if (syncIcon) syncIcon.classList.add('fa-spin');
+            
+            updateStatus(false, "Menghubungkan...");
+
+            fetchScript(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleTplData&sheet=TEMPLATE_PESAN`);
+            fetchScript(`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=responseHandler:handleKlsData&sheet=DATA_KELAS`);
+        }
+
+        function fetchScript(url) {
+            const script = document.createElement('script');
+            script.src = url;
+            document.body.appendChild(script);
+            script.onload = () => document.body.removeChild(script);
+        }
+
+        window.handleTplData = function(data) {
+            try {
+                TEMPLATES = [];
+                const rows = data.table.rows;
+                rows.forEach((r, idx) => {
+                    if (idx === 0) return;
+
+                    const c = r.c;
+                    if (c && c[3] && c[3].v !== null && c[3].v !== undefined) {
+                        TEMPLATES.push({
+                            id: c[0] && c[0].v !== null ? String(c[0].v) : '',
+                            kategori: c[1] && c[1].v !== null ? String(c[1].v) : 'Umum',
+                            judul: c[2] && c[2].v !== null ? String(c[2].v) : 'Template Pesan',
+                            isi: String(c[3].v)
+                        });
+                    }
+                });
+                populateTemplates();
+                checkStatus();
+            } catch (err) {
+                console.error("Gagal memproses template:", err);
+            }
+        };
+
+        window.handleKlsData = function(data) {
+            try {
+                KELAS = [];
+                const rows = data.table.rows;
+                rows.forEach((r, idx) => {
+                    if (idx === 0) return;
+
+                    const c = r.c;
+                    if (c && c[1] && c[1].v !== null && c[1].v !== undefined) {
+                        const status = c[7] && c[7].v !== null ? String(c[7].v).toLowerCase() : 'aktif';
+                        if (!status.includes('non')) {
+                            KELAS.push({
+                                id: c[0] && c[0].v !== null ? String(c[0].v) : '',
+                                nama: c[1] && c[1].v !== null ? String(c[1].v) : '',
+                                pengajar: c[2] && c[2].v !== null ? String(c[2].v) : '-',
+                                hari: c[3] && c[3].v !== null ? String(c[3].v) : '-',
+                                jam: c[4] && c[4].v !== null ? String(c[4].v) : '-',
+                                ruangan: c[5] && c[5].v !== null ? String(c[5].v) : '-',
+                                wa: c[6] && c[6].v !== null ? String(c[6].v) : ''
+                            });
+                        }
+                    }
+                });
+                populateKelas();
+                checkStatus();
+            } catch (err) {
+                console.error("Gagal memproses kelas:", err);
+            }
+        };
+
+        function checkStatus() {
+            const syncIcon = document.getElementById('syncIcon');
+            if (TEMPLATES.length > 0 || KELAS.length > 0) {
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+                updateStatus(true, "Terhubung ke Spreadsheet");
+            }
+        }
+
+        function updateStatus(isOnline, text) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            if (isOnline) {
+                statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 mr-2";
+                statusText.textContent = text;
+            } else {
+                statusDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse mr-2";
+                statusText.textContent = text;
+            }
+        }
+
+        function populateTemplates() {
+            const selectTpl = document.getElementById('selectTemplate');
+            const selectedVal = selectTpl.value;
+            selectTpl.innerHTML = '<option value="">-- Pilih Template Pesan --</option>';
+            TEMPLATES.forEach((t, i) => {
+                selectTpl.innerHTML += `<option value="${i}">[${t.kategori}] ${t.judul}</option>`;
+            });
+            if (selectedVal !== "") selectTpl.value = selectedVal;
+        }
+
+        function populateKelas() {
+            const selectKls = document.getElementById('selectKelas');
+            const selectedVal = selectKls.value;
+            selectKls.innerHTML = '<option value="">-- Pilih Kelas --</option>';
+            KELAS.forEach((k, i) => {
+                selectKls.innerHTML += `<option value="${i}">${k.nama} (${k.pengajar})</option>`;
+            });
+            if (selectedVal !== "") selectKls.value = selectedVal;
+        }
+
+        function onKelasChange() {
+            const idx = document.getElementById('selectKelas').value;
+            const infoBox = document.getElementById('infoKelasBox');
+
+            if (idx === "") {
+                if (infoBox) infoBox.classList.add('hidden');
+                document.getElementById('inputJam').value = "";
+                document.getElementById('inputRuangan').value = "";
+            } else {
+                const k = KELAS[idx];
+                document.getElementById('inputJam').value = k.jam || "";
+                document.getElementById('inputRuangan').value = k.ruangan || "";
+                document.getElementById('infoPengajar').textContent = k.pengajar || "-";
+                document.getElementById('infoHari').textContent = k.hari || "-";
+                if (infoBox) infoBox.classList.remove('hidden');
+            }
+            renderPreview();
+        }
+
+        function formatToAMPM(timeStr) {
+            if (!timeStr) return "";
+            return timeStr.replace(/\b([0-1]?[0-9]|2[0-3])[:.]([0-5][0-9])\b/g, (match, hStr, mStr) => {
+                let h = parseInt(hStr, 10);
+                const period = h < 12 ? "AM" : "PM";
+                h = h % 12;
+                if (h === 0) h = 12;
+                return `${h}:${mStr} ${period}`;
+            });
+        }
+
+        function renderPreview() {
+            if (isPreviewUnlocked) return;
+
+            const tplIdx = document.getElementById('selectTemplate').value;
+            const klsIdx = document.getElementById('selectKelas').value;
+            const previewArea = document.getElementById('previewTextarea');
+
+            if (tplIdx === "" || klsIdx === "") {
+                previewArea.value = "";
+                document.getElementById('charCount').textContent = "0 Karakter";
+                return;
+            }
+
+            const tpl = TEMPLATES[tplIdx];
+            const kls = KELAS[klsIdx];
+
+            let text = tpl.isi;
+            const jam = document.getElementById('inputJam').value || kls.jam;
+            const jamAMPM = formatToAMPM(jam);
+            const ruangan = document.getElementById('inputRuangan').value || kls.ruangan;
+            const catatan = document.getElementById('inputCatatan').value || "";
+
+            text = text
+                .replace(/\{kelas\}|\{nama_kelas\}|\{Nama_Kelas\}/gi, kls.nama)
+                .replace(/\{pengajar\}|\{Pengajar\}/gi, kls.pengajar)
+                .replace(/\{hari\}|\{hari_default\}|\{Hari_Default\}/gi, kls.hari)
+                .replace(/\{jam_ampm\}|\{Jam_AMPM\}|\{jam_12h\}|\{Jam_12h\}/g, jamAMPM)
+                .replace(/\{jam\}|\{jam_default\}|\{Jam_Default\}/gi, jam)
+                .replace(/\{ruangan\}|\{ruangan_default\}|\{Ruangan_Default\}/gi, ruangan)
+                .replace(/\{catatan\}|\{Catatan\}|\{modul\}/gi, catatan);
+
+            previewArea.value = text;
+            document.getElementById('charCount').textContent = `${text.length} Karakter`;
+        }
+
+        /* MODAL TEMPLATE BARU */
+        function openTemplateModal() {
+            const modal = document.getElementById('templateModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); }, 10);
+        }
+
+        function closeTemplateModal() {
+            const modal = document.getElementById('templateModal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('newKategori').value = '';
+                document.getElementById('newJudul').value = '';
+                document.getElementById('newIsi').value = '';
+            }, 300);
+        }
+
+        async function submitNewLocalTemplate() {
+            const kat = document.getElementById('newKategori').value.trim();
+            const judul = document.getElementById('newJudul').value.trim();
+            const isi = document.getElementById('newIsi').value.trim();
+            const btn = document.getElementById('btnSubmitNew');
+
+            if (!kat || !judul || !isi) {
+                showToast("Mohon isi semua bidang template!", "error");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...`;
+
+            try {
+                // Kirim ke Google Apps Script
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'addTemplate', kategori: kat, judul: judul, isi: isi })
+                });
+
+                // Update lokal seketika
+                const newTpl = { id: 'TMP-' + Date.now(), kategori: kat, judul: judul, isi: isi };
+                TEMPLATES.push(newTpl);
+                populateTemplates();
+
+                document.getElementById('selectTemplate').value = TEMPLATES.length - 1;
+                renderPreview();
+
+                closeTemplateModal();
+                showToast("Template baru tersimpan ke Spreadsheet!", "success");
+            } catch (err) {
+                showToast("Gagal menyimpan ke Spreadsheet: " + err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-plus"></i> Tambahkan`;
+            }
+        }
+
+        /* MODAL EDIT TEMPLATE */
+        function openEditTemplateModal() {
+            const tplIdx = document.getElementById('selectTemplate').value;
+            if (tplIdx === "") {
+                showToast("Pilih Template Pesan yang ingin diedit terlebih dahulu!", "error");
+                return;
+            }
+
+            const tpl = TEMPLATES[tplIdx];
+            document.getElementById('editKategori').value = tpl.kategori || "";
+            document.getElementById('editJudul').value = tpl.judul || "";
+            document.getElementById('editIsi').value = tpl.isi || "";
+
+            const modal = document.getElementById('editTemplateModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); }, 10);
+        }
+
+        function closeEditTemplateModal() {
+            const modal = document.getElementById('editTemplateModal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        async function submitUpdateTemplate() {
+            const tplIdx = document.getElementById('selectTemplate').value;
+            if (tplIdx === "") return;
+
+            const kat = document.getElementById('editKategori').value.trim();
+            const judul = document.getElementById('editJudul').value.trim();
+            const isi = document.getElementById('editIsi').value.trim();
+            const btn = document.getElementById('btnSubmitUpdate');
+
+            if (!kat || !judul || !isi) {
+                showToast("Mohon isi semua bidang template!", "error");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...`;
+
+            try {
+                const targetId = TEMPLATES[tplIdx].id;
+
+                // Kirim perubahan ke Google Apps Script
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'updateTemplate', id: targetId, kategori: kat, judul: judul, isi: isi })
+                });
+
+                // Update memori lokal
+                TEMPLATES[tplIdx].kategori = kat;
+                TEMPLATES[tplIdx].judul = judul;
+                TEMPLATES[tplIdx].isi = isi;
+
+                populateTemplates();
+                document.getElementById('selectTemplate').value = tplIdx;
+                renderPreview();
+
+                closeEditTemplateModal();
+                showToast("Perubahan tersimpan ke Spreadsheet!", "success");
+            } catch (err) {
+                showToast("Gagal memperbarui Spreadsheet: " + err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan`;
+            }
+        }
+
+        function sendLogHistory(skemaName) {
+            const tplIdx = document.getElementById('selectTemplate').value;
+            const klsIdx = document.getElementById('selectKelas').value;
+            if (tplIdx === "" || klsIdx === "") return;
+
+            const tpl = TEMPLATES[tplIdx];
+            const kls = KELAS[klsIdx];
+            const jam = document.getElementById('inputJam').value || kls.jam;
+            const ruangan = document.getElementById('inputRuangan').value || kls.ruangan;
+
+            fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'logHistory',
+                    logData: {
+                        namaKelas: kls.nama,
+                        kategoriTemplate: tpl.kategori,
+                        judulTemplate: tpl.judul,
+                        jam: jam,
+                        ruangan: ruangan,
+                        skema: skemaName
+                    }
+                })
+            }).catch(() => {});
+        }
+
+        function togglePreviewLock() {
+            const previewTextarea = document.getElementById('previewTextarea');
+            const lockIcon = document.getElementById('lockIcon');
+            const lockStatusText = document.getElementById('lockStatusText');
+            const toggleEditBtn = document.getElementById('toggleEditBtn');
+            const previewLockInfo = document.getElementById('previewLockInfo');
+
+            isPreviewUnlocked = !isPreviewUnlocked;
+
+            if (isPreviewUnlocked) {
+                previewTextarea.removeAttribute('readonly');
+                previewTextarea.classList.remove('bg-slate-900');
+                previewTextarea.classList.add('bg-slate-800', 'ring-2', 'ring-amber-500/50');
+                lockIcon.className = 'fa-solid fa-unlock text-amber-600';
+                lockStatusText.textContent = 'Kunci Teks';
+                toggleEditBtn.className = 'px-2 py-0.5 bg-amber-500 text-white border border-amber-600 text-xs font-medium rounded-lg transition flex items-center gap-1 shadow-sm';
+                previewLockInfo.innerHTML = '<i class="fa-solid fa-unlock text-emerald-400"></i> Mode edit aktif. Anda dapat mengetik langsung di area preview di atas.';
+                showToast("Mode edit manual diaktifkan", "info");
+            } else {
+                previewTextarea.setAttribute('readonly', 'readonly');
+                previewTextarea.classList.remove('bg-slate-800', 'ring-2', 'ring-amber-500/50');
+                previewTextarea.classList.add('bg-slate-900');
+                lockIcon.className = 'fa-solid fa-lock';
+                lockStatusText.textContent = 'Buka Edit Teks';
+                toggleEditBtn.className = 'px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-medium rounded-lg transition flex items-center gap-1';
+                previewLockInfo.innerHTML = '<i class="fa-solid fa-lock text-amber-500"></i> Preview terkunci. Klik <b>"Buka Edit Teks"</b> di atas jika ingin menyunting pesan secara manual.';
+                showToast("Preview dikunci kembali", "info");
+            }
+        }
+
+        async function executeSkema1() {
+            const msg = document.getElementById('previewTextarea').value;
+            const klsIdx = document.getElementById('selectKelas').value;
+
+            if (!document.getElementById('selectTemplate').value) {
+                showToast("Pilih Template Pesan terlebih dahulu!", "error");
+                return;
+            }
+            if (klsIdx === "") {
+                showToast("Pilih Kelas terlebih dahulu!", "error");
+                return;
+            }
+
+            const kls = KELAS[klsIdx];
+            let waUrl = kls.wa;
+
+            if (!waUrl) {
+                showToast("Link Group WA belum diisi di Spreadsheet!", "error");
+                return;
+            }
+
+            if (!waUrl.startsWith('http://') && !waUrl.startsWith('https://')) {
+                waUrl = 'https://' + waUrl;
+            }
+
+            await copyToClipboard(msg);
+            sendLogHistory("Skema 1 - Salin & Buka Group");
+            window.open(waUrl, 'Tab_WA_BBC');
+            showToast("Pesan disalin! Membuka grup WhatsApp...", "success");
+        }
+
+        function executeSkema2() {
+            const msg = document.getElementById('previewTextarea').value;
+            if (!document.getElementById('selectTemplate').value || !document.getElementById('selectKelas').value) {
+                showToast("Pilih Template Pesan dan Kelas terlebih dahulu!", "error");
+                return;
+            }
+            const encodedText = encodeURIComponent(msg);
+            sendLogHistory("Skema 2 - Direct Share WA");
+            window.open(`https://api.whatsapp.com/send?text=${encodedText}`, 'Tab_WA_BBC');
+            showToast("Membuka WhatsApp Direct Share...", "success");
+        }
+
+        async function copyOnlyText() {
+            const message = document.getElementById('previewTextarea').value;
+            if (!message.trim()) {
+                showToast("Pesan masih kosong!", "error");
+                return;
+            }
+            await copyToClipboard(message);
+            showToast("Teks pesan berhasil disalin!", "success");
+        }
+
+        async function copyToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    return;
+                } catch (err) {}
+            }
+            const tempInput = document.createElement('textarea');
+            tempInput.value = text;
+            tempInput.style.position = 'fixed';
+            tempInput.style.left = '-9999px';
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+        }
+
+        function resetForm() {
+            document.getElementById('selectTemplate').value = '';
+            document.getElementById('selectKelas').value = '';
+            document.getElementById('inputJam').value = '';
+            document.getElementById('inputRuangan').value = '';
+            document.getElementById('inputCatatan').value = '';
+            const infoBox = document.getElementById('infoKelasBox');
+            if (infoBox) infoBox.classList.add('hidden');
+            document.getElementById('previewTextarea').value = '';
+            document.getElementById('charCount').textContent = '0 Karakter';
+            showToast("Form berhasil di-reset", "info");
+        }
+
+        function showToast(msg, type = "info") {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.textContent = msg;
+
+            if (type === "success") {
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else if (type === "error") {
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+            } else {
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-info text-sky-400"></i>';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
