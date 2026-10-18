@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Laporan Realisasi Anggaran Cabang Karawang - v5.2</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --navy: #1F497D;
+            --light-navy: #2c5d9b;
+            --soft-bg: #f4f7f6;
+            --border-color: #cbd5e1;
+            --green: #2e7d32;
+            --red: #c62828;
+            --blue: #0284c7;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--soft-bg);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1350px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 1000;
+            padding-top: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        h1 {
+            color: var(--navy);
+            margin: 0 0 5px 0;
+            font-size: 24px;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 3px solid var(--navy);
+            margin-bottom: 15px;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: #e2e8f0;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: #475569;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--navy);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding-top: 10px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .bon-tabs-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f1f5f9;
+            padding: 8px 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        .bon-tabs-container {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            white-space: nowrap;
+            scroll-behavior: smooth;
+            padding-bottom: 4px;
+            flex-grow: 1;
+        }
+
+        .bon-tabs-container::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .bon-tabs-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .sub-tab-btn {
+            padding: 8px 16px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            cursor: grab;
+            font-weight: 600;
+            font-size: 13px;
+            color: #334155;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        .sub-tab-btn.active {
+            background: var(--navy);
+            color: white;
+            border-color: var(--navy);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+
+        .sub-tab-btn.dragging {
+            opacity: 0.4;
+            cursor: grabbing;
+        }
+
+        .sub-tab-btn.drag-over {
+            border: 2px dashed var(--navy);
+            background: #e0f2fe;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: white;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            background-color: var(--navy);
+            color: white;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .total-row {
+            background-color: #dbeafe !important;
+            font-weight: bold;
+        }
+
+        input[type="text"], input[type="date"], select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+
+        .item-status {
+            font-weight: bold;
+            color: white !important;
+            transition: background-color 0.2s;
+        }
+        .item-status.status-in {
+            background-color: var(--green) !important;
+        }
+        .item-status.status-out {
+            background-color: var(--red) !important;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            font-size: 13px;
+        }
+
+        .btn-add { background: #10b981; color: white; }
+        .btn-add:hover { background: #059669; }
+        .btn-add-bon { background: #0284c7; color: white; white-space: nowrap; }
+        .btn-add-bon:hover { background: #0369a1; }
+        .btn-upload { background: #0284c7; color: white; }
+        .btn-upload:hover { background: #0369a1; }
+        .btn-clear { background: #64748b; color: white; }
+        .btn-clear:hover { background: #475569; }
+        .btn-json-export { background: #059669; color: white; }
+        .btn-json-export:hover { background: #047857; }
+        .btn-json-import { background: #7c3aed; color: white; }
+        .btn-json-import:hover { background: #6d28d9; }
+        .btn-reset { background: #e11d48; color: white; }
+        .btn-reset:hover { background: #be123c; }
+        .btn-remove { background: #ef4444; color: white; padding: 4px 8px; }
+        .btn-remove:hover { background: #dc2626; }
+        .btn-process { background: var(--navy); color: white; font-size: 15px; padding: 12px 25px; width: 100%; margin-top: 15px; }
+        .btn-process:hover { background: var(--light-navy); }
+
+        .btn-export-pdf { background: #dc2626; color: white; margin-left: 5px; }
+        .btn-export-excel { background: #16a34a; color: white; margin-left: 5px; }
+
+        .action-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .export-group {
+            float: right;
+            margin-bottom: 15px;
+        }
+
+        .bon-card {
+            border: 2px solid var(--navy);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #fafafa;
+            display: none;
+        }
+
+        .bon-card.active {
+            display: block;
+        }
+
+        .bon-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .bon-header-summary {
+            background: #e0f2fe;
+            border: 1px solid #bae6fd;
+            padding: 10px 15px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+
+        .bon-header-summary .summary-title {
+            color: var(--navy);
+            font-size: 15px;
+        }
+
+        .bon-header-summary .summary-total {
+            color: var(--green);
+            font-size: 16px;
+        }
+
+        .bon-header-inputs {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        .referensi-floating-wrapper {
+            position: sticky;
+            top: 75px;
+            z-index: 900;
+            background: #f0f9ff;
+            border: 2px solid #0284c7;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .ref-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .ref-header h4 {
+            margin: 0;
+            color: var(--navy);
+            font-size: 14px;
+        }
+
+        .ref-table-wrapper {
+            max-height: 140px;
+            overflow-y: auto;
+            border: 1px solid #cbd5e1;
+            background: white;
+            margin-top: 8px;
+        }
+
+        .ref-table-wrapper table {
+            margin-bottom: 0;
+        }
+
+        .ref-table-wrapper th {
+            position: sticky;
+            top: 0;
+            background: #0284c7;
+            z-index: 2;
+        }
+
+        .autosave-badge {
+            font-size: 11px;
+            background: #dcfce7;
+            color: #15803d;
+            padding: 3px 8px;
+            border-radius: 12px;
+            border: 1px solid #86efac;
+            margin-left: 10px;
+        }
+
+        /* STYLES KHUSUS TAB CHART / DASHBOARD executive kantor pusat */
+        .kpi-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .kpi-card {
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 15px;
+            border-left: 5px solid var(--navy);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .kpi-card.blue { border-left-color: var(--blue); }
+        .kpi-card.green { border-left-color: var(--green); }
+        .kpi-card.red { border-left-color: var(--red); }
+
+        .kpi-title {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .kpi-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-top: 5px;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+            margin-top: 15px;
+        }
+
+        .chart-box {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        .chart-box h4 {
+            margin-top: 0;
+            color: var(--navy);
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .chart-legend-custom {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-color-box {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 10mm;
+            }
+
+            body {
+                background: white;
+                padding: 0;
+                margin: 0;
+                font-size: 11px;
+            }
+
+            .container {
+                box-shadow: none;
+                max-width: 100%;
+                width: 100%;
+                padding: 0;
+                margin: 0;
+            }
+
+            .sticky-header, .btn, select, input, .action-bar, .export-group, .referensi-floating-wrapper,
+            .bon-tabs-wrapper, #tab-anggaran, #tab-bon {
+                display: none !important;
+            }
+
+            .print-bon-only {
+                display: block !important;
+            }
+
+            #tab-detail, #tab-rekap, #tab-chart {
+                display: block !important;
+                visibility: visible !important;
+            }
+
+            #tab-rekap, #tab-chart {
+                page-break-before: always;
+            }
+
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                margin-bottom: 15px !important;
+            }
+
+            th, td {
+                border: 1px solid #000 !important;
+                padding: 5px 6px !important;
+                font-size: 10px !important;
+            }
+
+            th {
+                background-color: #f0f0f0 !important;
+                color: #000 !important;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .total-row {
+                background-color: #e6e6e6 !important;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="sticky-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>Laporan Realisasi Anggaran Biaya Operasional</h1>
+                <div class="subtitle">Cabang Karawang - Pertiwi Resources</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="btn btn-json-export" onclick="exportJSONData()">💾 Simpan Progress (JSON)</button>
+                <label class="btn btn-json-import">
+                    📂 Buka Progress (JSON)
+                    <input type="file" id="import-json-file" accept=".json" style="display: none;" onchange="importJSONData(event)">
+                </label>
+                <button class="btn btn-reset" onclick="resetSemuaData()">🔄 Reset Data</button>
+                <span class="autosave-badge" id="save-status">✓ Autosave Aktif</span>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-anggaran', event)">1. Tab Anggaran</button>
+            <button class="tab-btn" onclick="switchTab('tab-bon', event)">2. Input Aktual Bon</button>
+            <button class="tab-btn" onclick="switchTab('tab-detail', event)">3. Detail Realisasi</button>
+            <button class="tab-btn" onclick="switchTab('tab-rekap', event)">4. Rekapitulasi</button>
+            <button class="tab-btn" onclick="switchTab('tab-chart', event)" style="background: #e0f2fe; color: var(--navy);">📊 5. Visual Chart Dashboard</button>
+        </div>
+    </div>
+
+    <!-- TAB 1: ANGGARAN -->
+    <div id="tab-anggaran" class="tab-content active">
+        <h3>Daftar Pengajuan Anggaran Operasional</h3>
+        
+        <div class="action-bar">
+            <button class="btn btn-add" onclick="addAnggaranRow()">+ Tambah Item Anggaran</button>
+            <label class="btn btn-upload">
+                📂 Upload Spreadsheet (.xlsx / .csv)
+                <input type="file" id="upload-excel" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleExcelUpload(event)">
+            </label>
+            <button class="btn btn-clear" onclick="clearAnggaranTable()">🗑️ Clear / Hapus Semua Data Anggaran</button>
+        </div>
+
+        <table id="table-anggaran">
+            <thead>
+                <tr>
+                    <th style="width: 50px; text-align:center;">No</th>
+                    <th style="width: 220px;">Kategori Biaya</th>
+                    <th>Nama Item / Barang (Planning)</th>
+                    <th style="width: 180px;">Jumlah Anggaran (Rp)</th>
+                    <th>Keterangan Anggaran</th>
+                    <th style="width: 60px; text-align:center;">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="body-anggaran"></tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td colspan="3" style="text-align: right;">TOTAL ANGGARAN BIAYA OPERASIONAL:</td>
+                    <td id="total-anggaran-val">Rp 0</td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- TAB 2: AKTUAL BON -->
+    <div id="tab-bon" class="tab-content">
+        
+        <!-- PANEL PENDAMPING MELAYANG (STICKY) -->
+        <div class="referensi-floating-wrapper">
+            <div class="ref-header" onclick="toggleRefPanel()">
+                <h4>📋 Panel Referensi Budget Tab 1 <span style="font-weight: normal; font-size: 11px; color: #555;">(Klik untuk Sembunyikan/Tampilkan)</span></h4>
+                <button type="button" class="btn btn-clear" style="padding: 2px 8px; font-size: 11px;" id="btn-toggle-ref">Sembunyikan</button>
+            </div>
+            <div class="ref-table-wrapper" id="ref-panel-content">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align:center;">No</th>
+                            <th style="width: 180px;">Kategori Biaya</th>
+                            <th>Nama Item Anggaran (Planning)</th>
+                            <th style="width: 160px;">Plafon Anggaran (Rp)</th>
+                            <th>Keterangan Planning</th>
+                        </tr>
+                    </thead>
+                    <tbody id="body-ref-anggaran">
+                        <tr><td colspan="5" style="text-align:center; color:#888;">Belum ada data anggaran di Tab 1. Silakan isi Tab 1 terlebih dahulu.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TOMBOL EXPORT KHUSUS TAB AKTUAL BON -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;">Input Data Transaksi Bon Aktual</h3>
+            <div>
+                <button class="btn btn-export-pdf" onclick="printBonOnly()">📄 Print / PDF Bon Ini</button>
+                <button class="btn btn-export-excel" onclick="exportAllBonsToExcel()">📊 Export Spreadsheet Seluruh Bon</button>
+            </div>
+        </div>
+
+        <!-- NAVIGASI SUB-TAB BON KESAMPING -->
+        <div class="bon-tabs-wrapper">
+            <button class="btn btn-add-bon" onclick="addNewBonCard()">➕ Tambah Bon Baru</button>
+            <div class="bon-tabs-container" id="bon-subtabs-bar"></div>
+        </div>
+
+        <!-- Datalist Dinamis untuk Autocomplete per Kategori -->
+        <datalist id="datalist-filtered-items"></datalist>
+
+        <!-- Container Tempat Bon Card Tampil -->
+        <div id="bon-tables-container"></div>
+
+        <button class="btn btn-process" onclick="prosesRealisasi()">Hitung & Generate Detail Realisasi & Rekapitulasi</button>
+    </div>
+
+    <!-- TAB 3: DETAIL REALISASI -->
+    <div id="tab-detail" class="tab-content">
+        <div class="export-group">
+            <button class="btn btn-export-pdf" onclick="window.print()">📄 Export PDF / Print (A4)</button>
+            <button class="btn btn-export-excel" onclick="exportDetailToExcel()">📊 Export Excel (.xlsx)</button>
+        </div>
+        
+        <h3 style="text-align: center; text-transform: uppercase;">Detail Realisasi Biaya Operasional</h3>
+        <div class="subtitle" style="text-align: center; margin-bottom: 20px;">Cabang Karawang - Pertiwi Resources</div>
+        
+        <div id="table-detail-export">
+            <h4 style="color: var(--green); margin-top: 15px;">BAGIAN 1: ITEM YANG TERMASUK ANGGARAN (IN BUDGET)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align:center;">No</th>
+                        <th style="width: 150px;">Kategori Biaya</th>
+                        <th>Nama Item / Barang</th>
+                        <th style="width: 130px;">Anggaran (Rp)</th>
+                        <th style="width: 130px;">Realisasi Total (Rp)</th>
+                        <th style="width: 130px;">Varian / Selisih (Rp)</th>
+                        <th style="width: 160px;">No. Nota & Vendor</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="body-detail-in"></tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="3" style="text-align: right;">SUBTOTAL IN BUDGET:</td>
+                        <td id="subtotal-in-budget">Rp 0</td>
+                        <td id="subtotal-in-realisasi">Rp 0</td>
+                        <td id="subtotal-in-varian">Rp 0</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <h4 style="color: var(--red); margin-top: 25px;">BAGIAN 2: ITEM DILUAR ANGGARAN DIBELI (OUT BUDGET / BIAYA LAINNYA)</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align:center;">No</th>
+                        <th style="width: 150px;">Kategori Biaya</th>
+                        <th>Nama Item / Barang</th>
+                        <th style="width: 130px;">Anggaran (Rp)</th>
+                        <th style="width: 130px;">Realisasi Total (Rp)</th>
+                        <th style="width: 130px;">Varian / Selisih (Rp)</th>
+                        <th style="width: 160px;">No. Nota & Vendor</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody id="body-detail-out"></tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="3" style="text-align: right;">SUBTOTAL OUT BUDGET:</td>
+                        <td>Rp 0</td>
+                        <td id="subtotal-out-realisasi">Rp 0</td>
+                        <td id="subtotal-out-varian">Rp 0</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 4: REKAPITULASI -->
+    <div id="tab-rekap" class="tab-content">
+        <div class="export-group">
+            <button class="btn btn-export-pdf" onclick="window.print()">📄 Export PDF / Print (A4)</button>
+            <button class="btn btn-export-excel" onclick="exportRekapToExcel()">📊 Export Excel (.xlsx)</button>
+        </div>
+
+        <h3 style="text-align: center; text-transform: uppercase;">Laporan Rekapitulasi Realisasi Anggaran Biaya Operasional</h3>
+        <div class="subtitle" style="text-align: center; margin-bottom: 20px;">Cabang Karawang - Pertiwi Resources</div>
+
+        <div id="table-rekap-export">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align:center;">NO</th>
+                        <th>KATEGORI BIAYA</th>
+                        <th>JUMLAH ANGGARAN (Rp)</th>
+                        <th>REALISASI SESUAI BUDGET (Rp)</th>
+                        <th>REALISASI BIAYA LAINNYA (Rp)</th>
+                        <th>TOTAL REALISASI (Rp)</th>
+                        <th>VARIAN / SELISIH (Rp)</th>
+                        <th>KETERANGAN REKAP</th>
+                    </tr>
+                </thead>
+                <tbody id="body-rekap"></tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="2" style="text-align: right;">TOTAL BIAYA OPERASIONAL:</td>
+                        <td id="rekap-total-anggaran">Rp 0</td>
+                        <td id="rekap-total-in">Rp 0</td>
+                        <td id="rekap-total-out">Rp 0</td>
+                        <td id="rekap-grand-total">Rp 0</td>
+                        <td id="rekap-total-varian">Rp 0</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 5: CHART DASHBOARD EXECUTIVE KANTOR PUSAT -->
+    <div id="tab-chart" class="tab-content">
+        <div class="export-group">
+            <button class="btn btn-export-pdf" onclick="window.print()">📄 Export PDF / Print Dashboard</button>
+            <button class="btn btn-export-excel" onclick="exportChartDashboardToExcel()">📊 Export Excel Dashboard (.xlsx)</button>
+        </div>
+
+        <h3 style="text-align: center; text-transform: uppercase;">Executive Dashboard Realisasi Anggaran</h3>
+        <div class="subtitle" style="text-align: center; margin-bottom: 20px;">Cabang Karawang - Pertiwi Resources</div>
+
+        <!-- RINGKASAN ANGKAN KUNCI (KPI CARDS) -->
+        <div class="kpi-container">
+            <div class="kpi-card">
+                <div class="kpi-title">Plafon Total Anggaran</div>
+                <div class="kpi-value" id="kpi-anggaran">Rp 0</div>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-title">Realisasi Sesuai Budget (In)</div>
+                <div class="kpi-value" id="kpi-in">Rp 0</div>
+            </div>
+            <div class="kpi-card red">
+                <div class="kpi-title">Biaya Diluar Budget (Over/Out)</div>
+                <div class="kpi-value" id="kpi-out">Rp 0</div>
+            </div>
+            <div class="kpi-card green">
+                <div class="kpi-title">Sisa / Hemat Budget</div>
+                <div class="kpi-value" id="kpi-sisa">Rp 0</div>
+            </div>
+        </div>
+
+        <!-- KETERANGAN WARNA GRAFIK PERMINTAAN KANTOR PUSAT -->
+        <div class="chart-legend-custom">
+            <div class="legend-item">
+                <div class="legend-color-box" style="background-color: var(--blue);"></div>
+                <span>Masuk Budget (IN BUDGET)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box" style="background-color: var(--red);"></div>
+                <span>Over / Out Budget (BIAYA LAINNYA)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color-box" style="background-color: var(--green);"></div>
+                <span>Sesuai / Sisa Budget (EFISIENSI)</span>
+            </div>
+        </div>
+
+        <!-- GRAFIK VISUALISASI UTAMA -->
+        <div class="chart-grid">
+            <div class="chart-box">
+                <h4>1. Grafik Komposisi Realisasi per Kategori (Horizontal Stacked Bar Chart)</h4>
+                <div style="height: 400px; position: relative;">
+                    <canvas id="chartCategoryStacked"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-box">
+                <h4>2. Perbandingan Total Plafon Anggaran vs Realisasi per Kategori</h4>
+                <div style="height: 380px; position: relative;">
+                    <canvas id="chartCategoryCompare"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const KATEGORI_LIST = [
+        "ATK & CETAKAN",
+        "FASILITAS PBM",
+        "UTILITAS & TELKOM",
+        "BEBAN RTK",
+        "BEBAN DINAS",
+        "BEBAN PERJALANAN DINAS",
+        "BIAYA PROMOSI IKLAN",
+        "LAIN-LAIN"
+    ];
+
+    let bonCounter = 0;
+    let activeBonId = null;
+    let draggedSubTabId = null;
+
+    /* Global Variable Chart Instances */
+    let chartStackedInstance = null;
+    let chartCompareInstance = null;
+
+    function formatNumberInput(val) {
+        if (!val) return "";
+        let clean = val.toString().replace(/\D/g, "");
+        return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+
+    function parseFormattedNumber(val) {
+        if (!val) return 0;
+        return Number(val.toString().replace(/\./g, "")) || 0;
+    }
+
+    function formatRp(num) {
+        return "Rp " + Number(num).toLocaleString('id-ID');
+    }
+
+    function switchTab(tabId, evt) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        if (evt) evt.target.classList.add('active');
+
+        if (tabId === 'tab-bon') {
+            updateReferensiAnggaranPanel();
+        }
+    }
+
+    function toggleRefPanel() {
+        let content = document.getElementById('ref-panel-content');
+        let btn = document.getElementById('btn-toggle-ref');
+        if (content.style.display === "none") {
+            content.style.display = "block";
+            btn.innerText = "Sembunyikan";
+        } else {
+            content.style.display = "none";
+            btn.innerText = "Tampilkan";
+        }
+    }
+
+    window.onload = function() {
+        loadDataFromLocalStorage();
+        if (document.querySelectorAll('.bon-card').length === 0) {
+            addNewBonCard();
+        } else {
+            document.querySelectorAll('.bon-card').forEach(card => calculateTotalBon(card.id));
+        }
+        setupArrowNavigation();
+    };
+
+    function setupArrowNavigation() {
+        document.addEventListener('keydown', function(e) {
+            const activeEl = document.activeElement;
+            if (!activeEl || !['INPUT', 'SELECT'].includes(activeEl.tagName)) return;
+
+            const tr = activeEl.closest('tr');
+            if (!tr) return;
+
+            const table = tr.closest('table');
+            if (!table) return;
+
+            const cells = Array.from(tr.querySelectorAll('input:not([type="hidden"]), select'));
+            const currentIndex = cells.indexOf(activeEl);
+
+            if (e.key === 'ArrowRight' && currentIndex < cells.length - 1) {
+                if (activeEl.tagName === 'INPUT' && activeEl.selectionStart !== activeEl.value.length) return;
+                cells[currentIndex + 1].focus();
+                e.preventDefault();
+            } else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+                if (activeEl.tagName === 'INPUT' && activeEl.selectionStart !== 0) return;
+                cells[currentIndex - 1].focus();
+                e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+                const nextTr = tr.nextElementSibling;
+                if (nextTr) {
+                    const nextCells = nextTr.querySelectorAll('input:not([type="hidden"]), select');
+                    if (nextCells[currentIndex]) nextCells[currentIndex].focus();
+                }
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                const prevTr = tr.previousElementSibling;
+                if (prevTr) {
+                    const prevCells = prevTr.querySelectorAll('input:not([type="hidden"]), select');
+                    if (prevCells[currentIndex]) prevCells[currentIndex].focus();
+                }
+                e.preventDefault();
+            }
+        });
+    }
+
+    function handleAmountInput(e) {
+        e.target.value = formatNumberInput(e.target.value);
+        calculateTotalAnggaran();
+        saveDataToLocalStorage();
+    }
+
+    function createAnggaranRow(no, kat, item, val, ket) {
+        let tr = document.createElement('tr');
+        let katOptions = KATEGORI_LIST.map(k => `<option value="${k}" ${k === kat ? 'selected' : ''}>${k}</option>`).join('');
+        let formattedVal = formatNumberInput(val);
+
+        tr.innerHTML = `
+            <td style="text-align:center;">${no}</td>
+            <td><select class="anggaran-kat" onchange="saveDataToLocalStorage()">${katOptions}</select></td>
+            <td><input type="text" class="anggaran-item" value="${item}" oninput="saveDataToLocalStorage()"></td>
+            <td><input type="text" class="anggaran-val" placeholder="0" value="${formattedVal}" oninput="handleAmountInput(event)"></td>
+            <td><input type="text" class="anggaran-ket" value="${ket}" oninput="saveDataToLocalStorage()"></td>
+            <td style="text-align:center;"><button class="btn btn-remove" onclick="removeAnggaranRow(this)">X</button></td>
+        `;
+        return tr;
+    }
+
+    function addAnggaranRow() {
+        let tbody = document.getElementById('body-anggaran');
+        let no = tbody.children.length + 1;
+        let tr = createAnggaranRow(no, KATEGORI_LIST[0], "", "", "");
+        tbody.appendChild(tr);
+        calculateTotalAnggaran();
+        saveDataToLocalStorage();
+    }
+
+    function removeAnggaranRow(btn) {
+        btn.closest('tr').remove();
+        reindexAnggaranRows();
+        calculateTotalAnggaran();
+        saveDataToLocalStorage();
+    }
+
+    function reindexAnggaranRows() {
+        document.querySelectorAll('#body-anggaran tr').forEach((tr, index) => {
+            tr.children[0].innerText = index + 1;
+        });
+    }
+
+    function clearAnggaranTable() {
+        if (confirm("Apakah Anda yakin ingin menghapus seluruh data anggaran di tabel ini?")) {
+            document.getElementById('body-anggaran').innerHTML = "";
+            calculateTotalAnggaran();
+            saveDataToLocalStorage();
+        }
+    }
+
+    function resetSemuaData() {
+        if (confirm("⚠️ PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SELURUH DATA untuk memulai periode anggaran baru?\n\nPastikan Anda sudah mengunduh file JSON, PDF, atau Excel Laporan Realisasi sebelumnya.")) {
+            localStorage.removeItem('anggaran_app_draft');
+            location.reload();
+        }
+    }
+
+    function calculateTotalAnggaran() {
+        let total = 0;
+        document.querySelectorAll('.anggaran-val').forEach(input => {
+            total += parseFormattedNumber(input.value);
+        });
+        document.getElementById('total-anggaran-val').innerText = formatRp(total);
+    }
+
+    function handleExcelUpload(event) {
+        let file = event.target.files[0];
+        if (!file) return;
+
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            let data = new Uint8Array(e.target.result);
+            let workbook = XLSX.read(data, {type: 'array'});
+            let firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            let rows = XLSX.utils.sheet_to_json(firstSheet, {header: 1});
+
+            let tbody = document.getElementById('body-anggaran');
+            tbody.innerHTML = "";
+
+            let rowNo = 1;
+            for (let i = 1; i < rows.length; i++) {
+                let row = rows[i];
+                if (!row || row.length === 0) continue;
+
+                let kat = row[1] ? row[1].toString().trim() : KATEGORI_LIST[0];
+                let item = row[2] ? row[2].toString().trim() : "";
+                let val = row[3] ? parseFormattedNumber(row[3]) : 0;
+                let ket = row[4] ? row[4].toString().trim() : "";
+
+                if (item || val > 0) {
+                    let tr = createAnggaranRow(rowNo++, kat, item, val, ket);
+                    tbody.appendChild(tr);
+                }
+            }
+            calculateTotalAnggaran();
+            saveDataToLocalStorage();
+            alert("Data spreadsheet berhasil diunggah!");
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function updateReferensiAnggaranPanel() {
+        let refBody = document.getElementById('body-ref-anggaran');
+        refBody.innerHTML = "";
+
+        let rows = document.querySelectorAll('#body-anggaran tr');
+        if (rows.length === 0) {
+            refBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#888;">Belum ada data anggaran di Tab 1. Silakan isi Tab 1 terlebih dahulu.</td></tr>`;
+            return;
+        }
+
+        rows.forEach((tr, index) => {
+            let kat = tr.querySelector('.anggaran-kat').value;
+            let item = tr.querySelector('.anggaran-item').value;
+            let val = parseFormattedNumber(tr.querySelector('.anggaran-val').value);
+            let ket = tr.querySelector('.anggaran-ket').value;
+
+            if (item) {
+                let refTr = document.createElement('tr');
+                refTr.innerHTML = `
+                    <td style="text-align:center;">${index + 1}</td>
+                    <td>${kat}</td>
+                    <td><strong>${item}</strong></td>
+                    <td style="color:var(--navy); font-weight:bold;">${formatRp(val)}</td>
+                    <td>${ket || '-'}</td>
+                `;
+                refBody.appendChild(refTr);
+            }
+        });
+    }
+
+    function updateFilteredDatalist(katSelectVal) {
+        let datalist = document.getElementById('datalist-filtered-items');
+        datalist.innerHTML = "";
+
+        document.querySelectorAll('#body-anggaran tr').forEach(tr => {
+            let kat = tr.querySelector('.anggaran-kat').value;
+            let item = tr.querySelector('.anggaran-item').value;
+            let val = parseFormattedNumber(tr.querySelector('.anggaran-val').value);
+
+            if (kat === katSelectVal && item) {
+                let opt = document.createElement('option');
+                opt.value = item;
+                opt.dataset.kat = kat;
+                opt.dataset.val = val;
+                datalist.appendChild(opt);
+            }
+        });
+    }
+
+    function calculateRowNetTotal(tr) {
+        let hargaAwal = parseFormattedNumber(tr.querySelector('.item-harga-awal').value);
+        let adjType = tr.querySelector('.item-adj-type').value;
+        let adjVal = parseFormattedNumber(tr.querySelector('.item-adj-val').value);
+
+        let net = hargaAwal;
+        if (adjType === "DISCOUNT") {
+            net = Math.max(0, hargaAwal - adjVal);
+        } else if (adjType === "PLASTIC" || adjType === "PARKING") {
+            net = hargaAwal + adjVal;
+        }
+
+        tr.querySelector('.item-total').value = formatNumberInput(net);
+    }
+
+    function calculateTotalBon(cardId) {
+        let card = document.getElementById(cardId);
+        if (!card) return;
+        let total = 0;
+
+        card.querySelectorAll('.bon-items-body tr').forEach(tr => {
+            calculateRowNetTotal(tr);
+            total += parseFormattedNumber(tr.querySelector('.item-total').value);
+        });
+
+        let totalEl = card.querySelector('.bon-total-val');
+        if (totalEl) {
+            totalEl.innerText = formatRp(total);
+        }
+
+        let summaryVendor = card.querySelector('.top-summary-vendor');
+        let summaryTotal = card.querySelector('.top-summary-total');
+        let vendorName = card.querySelector('.bon-vendor').value || "-";
+        
+        if (summaryVendor) summaryVendor.innerText = vendorName;
+        if (summaryTotal) summaryTotal.innerText = formatRp(total);
+    }
+
+    function updateStatusColor(selectEl) {
+        if (selectEl.value === "IN") {
+            selectEl.className = "item-status status-in";
+        } else {
+            selectEl.className = "item-status status-out";
+        }
+    }
+
+    function addNewBonCard() {
+        bonCounter++;
+        let cardId = `bon-card-${bonCounter}`;
+        let container = document.getElementById('bon-tables-container');
+
+        let card = document.createElement('div');
+        card.className = "bon-card";
+        card.id = cardId;
+
+        card.innerHTML = `
+            <div class="bon-card-header">
+                <h4 style="color:var(--navy); margin:0;" id="title-${cardId}">BON / NOTA #${bonCounter}</h4>
+                <button class="btn btn-remove" onclick="removeBonCard('${cardId}')">🗑️ Hapus Bon Ini</button>
+            </div>
+            
+            <div class="bon-header-summary">
+                <span class="summary-title">🏪 Toko / Vendor: <span class="top-summary-vendor" style="color:var(--navy);">-</span></span>
+                <span class="summary-total">🛍️ Total Bon: <span class="top-summary-total">Rp 0</span></span>
+            </div>
+
+            <div class="bon-header-inputs">
+                <div style="flex:1;">
+                    <label>No. Nota / Bon:</label>
+                    <input type="text" class="bon-no" value="Nota #${String(bonCounter).padStart(3, '0')}" oninput="updateSubTabTitle('${cardId}'); saveDataToLocalStorage();">
+                </div>
+                <div style="flex:1;">
+                    <label>Tanggal:</label>
+                    <input type="date" class="bon-tgl" onchange="saveDataToLocalStorage()">
+                </div>
+                <div style="flex:1;">
+                    <label>Nama Toko / Vendor:</label>
+                    <input type="text" class="bon-vendor" placeholder="Nama Toko" oninput="calculateTotalBon('${cardId}'); saveDataToLocalStorage();">
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 160px;">Kategori Biaya</th>
+                        <th>Nama Item / Barang</th>
+                        <th style="width: 120px;">Harga (Rp)</th>
+                        <th style="width: 110px;">Penyesuaian</th>
+                        <th style="width: 100px;">Nominal (Rp)</th>
+                        <th style="width: 120px;">Total Net (Rp)</th>
+                        <th style="width: 120px;">Status Budget</th>
+                        <th>Keterangan Realisasi</th>
+                        <th style="width: 40px; text-align:center;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="bon-items-body"></tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="5" style="text-align: right;">TOTAL BON INI:</td>
+                        <td class="bon-total-val" style="color:var(--navy);">Rp 0</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+            <button class="btn btn-add" onclick="addBonItem(this)">+ Tambah Barang di Bon Ini</button>
+        `;
+        container.appendChild(card);
+        addBonItem(card.querySelector('.btn-add'));
+
+        renderSubTabs();
+        switchBonTab(cardId);
+        saveDataToLocalStorage();
+    }
+
+    function renderSubTabs() {
+        let subTabsBar = document.getElementById('bon-subtabs-bar');
+        subTabsBar.innerHTML = "";
+
+        let cards = document.querySelectorAll('.bon-card');
+        cards.forEach((card, idx) => {
+            let cardId = card.id;
+            let noNota = card.querySelector('.bon-no').value || `Bon #${idx + 1}`;
+            
+            let btn = document.createElement('button');
+            btn.className = `sub-tab-btn ${cardId === activeBonId ? 'active' : ''}`;
+            btn.id = `subtab-btn-${cardId}`;
+            btn.innerHTML = `📑 ${noNota}`;
+            btn.onclick = () => switchBonTab(cardId);
+            
+            btn.setAttribute('draggable', 'true');
+
+            btn.addEventListener('dragstart', (e) => {
+                draggedSubTabId = cardId;
+                btn.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            btn.addEventListener('dragend', () => {
+                btn.classList.remove('dragging');
+                document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('drag-over'));
+            });
+
+            btn.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                btn.classList.add('drag-over');
+            });
+
+            btn.addEventListener('dragleave', () => {
+                btn.classList.remove('drag-over');
+            });
+
+            btn.addEventListener('drop', (e) => {
+                e.preventDefault();
+                btn.classList.remove('drag-over');
+
+                if (draggedSubTabId && draggedSubTabId !== cardId) {
+                    reorderBonCards(draggedSubTabId, cardId);
+                }
+            });
+
+            subTabsBar.appendChild(btn);
+        });
+    }
+
+    function reorderBonCards(draggedId, targetId) {
+        let container = document.getElementById('bon-tables-container');
+        let draggedCard = document.getElementById(draggedId);
+        let targetCard = document.getElementById(targetId);
+
+        if (!draggedCard || !targetCard) return;
+
+        let cards = Array.from(container.children);
+        let draggedIdx = cards.indexOf(draggedCard);
+        let targetIdx = cards.indexOf(targetCard);
+
+        if (draggedIdx < targetIdx) {
+            container.insertBefore(draggedCard, targetCard.nextSibling);
+        } else {
+            container.insertBefore(draggedCard, targetCard);
+        }
+
+        renderSubTabs();
+        saveDataToLocalStorage();
+    }
+
+    function switchBonTab(cardId) {
+        activeBonId = cardId;
+        document.querySelectorAll('.bon-card').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+
+        let targetCard = document.getElementById(cardId);
+        let targetSubTab = document.getElementById(`subtab-btn-${cardId}`);
+
+        if (targetCard) targetCard.classList.add('active');
+        if (targetSubTab) targetSubTab.classList.add('active');
+    }
+
+    function updateSubTabTitle(cardId) {
+        let card = document.getElementById(cardId);
+        if (!card) return;
+        let noNota = card.querySelector('.bon-no').value || "Nota";
+        let subTabBtn = document.getElementById(`subtab-btn-${cardId}`);
+        if (subTabBtn) {
+            subTabBtn.innerHTML = `📑 ${noNota}`;
+        }
+        let titleEl = document.getElementById(`title-${cardId}`);
+        if (titleEl) {
+            titleEl.innerText = noNota.toUpperCase();
+        }
+    }
+
+    function removeBonCard(cardId) {
+        if (confirm("Apakah Anda yakin ingin menghapus bon/nota ini beserta seluruh isian di dalamnya?")) {
+            document.getElementById(cardId).remove();
+            
+            let remainingCards = document.querySelectorAll('.bon-card');
+            if (remainingCards.length > 0) {
+                switchBonTab(remainingCards[0].id);
+            } else {
+                addNewBonCard();
+            }
+            renderSubTabs();
+            saveDataToLocalStorage();
+        }
+    }
+
+    function addBonItem(btn) {
+        let card = btn.closest('.bon-card');
+        let tbody = card.querySelector('.bon-items-body');
+        
+        let defaultKat = KATEGORI_LIST[0];
+        let firstRowKatSelect = tbody.querySelector('tr .item-kat');
+        if (firstRowKatSelect) {
+            defaultKat = firstRowKatSelect.value;
+        }
+
+        let tr = document.createElement('tr');
+        let katOptions = KATEGORI_LIST.map(k => `<option value="${k}" ${k === defaultKat ? 'selected' : ''}>${k}</option>`).join('');
+
+        tr.innerHTML = `
+            <td><select class="item-kat" onchange="handleKatChangeInBon(this); saveDataToLocalStorage();">${katOptions}</select></td>
+            <td><input type="text" class="item-nama" list="datalist-filtered-items" placeholder="Ketik/Pilih barang..." onfocus="handleKatChangeInBon(this.closest('tr').querySelector('.item-kat'))" oninput="handleItemNamaChange(this)"></td>
+            <td><input type="text" class="item-harga-awal" placeholder="0" oninput="this.value = formatNumberInput(this.value); calculateTotalBon('${card.id}'); saveDataToLocalStorage();"></td>
+            <td>
+                <select class="item-adj-type" onchange="calculateTotalBon('${card.id}'); saveDataToLocalStorage();">
+                    <option value="NONE">Tanpa Adj.</option>
+                    <option value="DISCOUNT">- Diskon</option>
+                    <option value="PLASTIC">+ Plastik</option>
+                    <option value="PARKING">+ Parkir</option>
+                </select>
+            </td>
+            <td><input type="text" class="item-adj-val" placeholder="0" oninput="this.value = formatNumberInput(this.value); calculateTotalBon('${card.id}'); saveDataToLocalStorage();"></td>
+            <td><input type="text" class="item-total" placeholder="0" readonly style="background:#f1f5f9; font-weight:bold;"></td>
+            <td>
+                <select class="item-status status-in" onchange="updateStatusColor(this); saveDataToLocalStorage();">
+                    <option value="IN">IN BUDGET</option>
+                    <option value="OUT">OUT BUDGET</option>
+                </select>
+            </td>
+            <td><input type="text" class="item-ket" placeholder="Catatan/Alasan" oninput="saveDataToLocalStorage()"></td>
+            <td style="text-align:center;"><button class="btn btn-remove" onclick="this.closest('tr').remove(); calculateTotalBon('${card.id}'); saveDataToLocalStorage();">X</button></td>
+        `;
+        tbody.appendChild(tr);
+        calculateTotalBon(card.id);
+        saveDataToLocalStorage();
+    }
+
+    function handleKatChangeInBon(selectEl) {
+        let selectedKat = selectEl.value;
+        updateFilteredDatalist(selectedKat);
+    }
+
+    function handleItemNamaChange(input) {
+        let row = input.closest('tr');
+        let val = input.value.trim().toLowerCase();
+        let statusSelect = row.querySelector('.item-status');
+        let currentKat = row.querySelector('.item-kat').value;
+
+        let match = false;
+        document.querySelectorAll('#body-anggaran tr').forEach(tr => {
+            let kat = tr.querySelector('.anggaran-kat').value;
+            let item = tr.querySelector('.anggaran-item').value.trim().toLowerCase();
+            if (kat === currentKat && item === val) {
+                match = true;
+            }
+        });
+
+        if (match) {
+            statusSelect.value = "IN";
+        } else {
+            if (val !== "") {
+                statusSelect.value = "OUT";
+            }
+        }
+        updateStatusColor(statusSelect);
+        saveDataToLocalStorage();
+    }
+
+    function printBonOnly() {
+        let activeCard = document.querySelector('.bon-card.active');
+        if (!activeCard) return;
+        activeCard.classList.add('print-bon-only');
+        window.print();
+        activeCard.classList.remove('print-bon-only');
+    }
+
+    /* EXPORT EXCEL SELURUH BON SEKALIGUS DALAM 1 SHEET SECARA RAPI */
+    function exportAllBonsToExcel() {
+        let cards = document.querySelectorAll('.bon-card');
+        if (cards.length === 0) {
+            alert("Belum ada data Bon yang diinput.");
+            return;
+        }
+
+        let sheetData = [];
+        let headers = ["No. Nota", "Tanggal", "Vendor / Toko", "Kategori Biaya", "Nama Item / Barang", "Harga (Rp)", "Jenis Penyesuaian", "Nominal Adj (Rp)", "Total Net (Rp)", "Status Budget", "Keterangan Realisasi"];
+        sheetData.push(headers);
+
+        let grandTotalAllBons = 0;
+
+        cards.forEach((card, idx) => {
+            let noNota = card.querySelector('.bon-no').value || `Nota #${idx + 1}`;
+            let tgl = card.querySelector('.bon-tgl').value || "-";
+            let vendor = card.querySelector('.bon-vendor').value || "-";
+            let totalBonThisCard = 0;
+
+            let rows = card.querySelectorAll('.bon-items-body tr');
+            rows.forEach(tr => {
+                let kat = tr.querySelector('.item-kat').value;
+                let nama = tr.querySelector('.item-nama').value;
+                let harga = parseFormattedNumber(tr.querySelector('.item-harga-awal').value);
+                let adjTypeVal = tr.querySelector('.item-adj-type').value;
+                let adjLabel = "Tanpa Adj.";
+                if (adjTypeVal === "DISCOUNT") adjLabel = "- Diskon";
+                else if (adjTypeVal === "PLASTIC") adjLabel = "+ Plastik";
+                else if (adjTypeVal === "PARKING") adjLabel = "+ Parkir";
+
+                let adjVal = parseFormattedNumber(tr.querySelector('.item-adj-val').value);
+                let totalNet = parseFormattedNumber(tr.querySelector('.item-total').value);
+                let status = tr.querySelector('.item-status').value === "IN" ? "IN BUDGET" : "OUT BUDGET";
+                let ket = tr.querySelector('.item-ket').value;
+
+                totalBonThisCard += totalNet;
+
+                if (nama || harga > 0) {
+                    sheetData.push([
+                        noNota,
+                        tgl,
+                        vendor,
+                        kat,
+                        nama,
+                        harga,
+                        adjLabel,
+                        adjVal,
+                        totalNet,
+                        status,
+                        ket
+                    ]);
+                }
+            });
+
+            // Tambahkan Subtotal per Bon jika ada item
+            sheetData.push([
+                `SUBTOTAL ${noNota.toUpperCase()}`, "", "", "", "", "", "", "", totalBonThisCard, "", ""
+            ]);
+            sheetData.push([]); // Baris kosong pembatas antar bon
+            grandTotalAllBons += totalBonThisCard;
+        });
+
+        sheetData.push([
+            "GRAND TOTAL SELURUH BON", "", "", "", "", "", "", "", grandTotalAllBons, "", ""
+        ]);
+
+        let wb = XLSX.utils.book_new();
+        let ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Setting Column Widths
+        ws['!cols'] = [
+            { wch: 16 }, // No Nota
+            { wch: 12 }, // Tanggal
+            { wch: 22 }, // Vendor
+            { wch: 22 }, // Kategori
+            { wch: 28 }, // Nama Item
+            { wch: 15 }, // Harga
+            { wch: 16 }, // Adj Type
+            { wch: 15 }, // Adj Val
+            { wch: 16 }, // Total Net
+            { wch: 15 }, // Status
+            { wch: 25 }  // Ket
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Rekap_Seluruh_Bon");
+        let today = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `Laporan_Transaksi_Seluruh_Bon_${today}.xlsx`);
+    }
+
+    function prosesRealisasi() {
+        let anggaranItems = [];
+        document.querySelectorAll('#body-anggaran tr').forEach(tr => {
+            anggaranItems.push({
+                kat: tr.querySelector('.anggaran-kat').value,
+                item: tr.querySelector('.anggaran-item').value,
+                val: parseFormattedNumber(tr.querySelector('.anggaran-val').value),
+                ket: tr.querySelector('.anggaran-ket').value
+            });
+        });
+
+        let inBudgetReal = [];
+        let outBudgetReal = [];
+
+        document.querySelectorAll('.bon-card').forEach(card => {
+            let noNota = card.querySelector('.bon-no').value;
+            let vendor = card.querySelector('.bon-vendor').value;
+            let notaInfo = `${noNota} (${vendor})`;
+
+            card.querySelectorAll('.bon-items-body tr').forEach(tr => {
+                let itemNama = tr.querySelector('.item-nama').value.trim();
+                let itemData = {
+                    kat: tr.querySelector('.item-kat').value,
+                    item: itemNama,
+                    total: parseFormattedNumber(tr.querySelector('.item-total').value),
+                    status: tr.querySelector('.item-status').value,
+                    ket: tr.querySelector('.item-ket').value,
+                    nota: notaInfo
+                };
+
+                if (itemData.total > 0 || itemNama !== "") {
+                    if (itemData.status === "IN") {
+                        inBudgetReal.push(itemData);
+                    } else {
+                        outBudgetReal.push(itemData);
+                    }
+                }
+            });
+        });
+
+        // TAB 3: BAGIAN 1 - IN BUDGET
+        let bodyIn = document.getElementById('body-detail-in');
+        bodyIn.innerHTML = "";
+        let subtotalInAnggaran = 0;
+        let subtotalInRealisasi = 0;
+        let noIn = 1;
+
+        let matchedInItems = [];
+
+        anggaranItems.forEach(ang => {
+            let matches = inBudgetReal.filter(b => 
+                b.item.toLowerCase().trim() === ang.item.toLowerCase().trim() && 
+                b.kat === ang.kat
+            );
+            
+            matches.forEach(m => matchedInItems.push(m));
+
+            let realisasi = matches.reduce((sum, m) => sum + m.total, 0);
+            let varian = ang.val - realisasi;
+            let nota = matches.length > 0 ? matches.map(m => m.nota).join(', ') : "-";
+            let ket = matches.length > 0 ? matches.map(m => m.ket).filter(k => k).join('; ') : (ang.val > 0 ? "TIDAK DIBELI (Uang Utuh)" : "-");
+
+            subtotalInAnggaran += ang.val;
+            subtotalInRealisasi += realisasi;
+
+            let tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align:center;">1.${noIn++}</td>
+                <td>${ang.kat}</td>
+                <td>${ang.item}</td>
+                <td>${formatRp(ang.val)}</td>
+                <td>${formatRp(realisasi)}</td>
+                <td style="color:${varian < 0 ? 'red':'green'}">${formatRp(varian)}</td>
+                <td>${nota}</td>
+                <td>${ket || '-'}</td>
+            `;
+            bodyIn.appendChild(tr);
+        });
+
+        let unmatchedInItems = inBudgetReal.filter(b => !matchedInItems.includes(b));
+        unmatchedInItems.forEach(unm => {
+            subtotalInRealisasi += unm.total;
+            let tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align:center;">1.${noIn++}</td>
+                <td>${unm.kat}</td>
+                <td>${unm.item} <span style="color:red; font-size:11px;">(Nama beda dengan Tab 1)</span></td>
+                <td>Rp 0</td>
+                <td>${formatRp(unm.total)}</td>
+                <td style="color:red">${formatRp(0 - unm.total)}</td>
+                <td>${unm.nota}</td>
+                <td>${unm.ket || '-'}</td>
+            `;
+            bodyIn.appendChild(tr);
+        });
+
+        let subtotalInVarian = subtotalInAnggaran - subtotalInRealisasi;
+        document.getElementById('subtotal-in-budget').innerText = formatRp(subtotalInAnggaran);
+        document.getElementById('subtotal-in-realisasi').innerText = formatRp(subtotalInRealisasi);
+        document.getElementById('subtotal-in-varian').innerText = formatRp(subtotalInVarian);
+
+        // TAB 3: BAGIAN 2 - OUT BUDGET
+        let bodyOut = document.getElementById('body-detail-out');
+        bodyOut.innerHTML = "";
+        let subtotalOutRealisasi = 0;
+        let noOut = 1;
+
+        outBudgetReal.forEach(out => {
+            subtotalOutRealisasi += out.total;
+            let varian = 0 - out.total;
+
+            let tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align:center;">2.${noOut++}</td>
+                <td>${out.kat}</td>
+                <td>${out.item}</td>
+                <td>Rp 0</td>
+                <td>${formatRp(out.total)}</td>
+                <td style="color:red">${formatRp(varian)}</td>
+                <td>${out.nota}</td>
+                <td>${out.ket || '-'}</td>
+            `;
+            bodyOut.appendChild(tr);
+        });
+
+        document.getElementById('subtotal-out-realisasi').innerText = formatRp(subtotalOutRealisasi);
+        document.getElementById('subtotal-out-varian').innerText = formatRp(0 - subtotalOutRealisasi);
+
+        // TAB 4: REKAPITULASI
+        let bodyRekap = document.getElementById('body-rekap');
+        bodyRekap.innerHTML = "";
+
+        let grandAnggaran = 0, grandIn = 0, grandOut = 0, grandTotalReal = 0, grandVarian = 0;
+
+        let rekapCategoryData = [];
+
+        KATEGORI_LIST.forEach((kat, index) => {
+            let katAnggaran = anggaranItems.filter(a => a.kat === kat).reduce((sum, a) => sum + a.val, 0);
+            
+            let katInReal = inBudgetReal.filter(b => b.kat === kat).reduce((sum, b) => sum + b.total, 0);
+            let katOutReal = outBudgetReal.filter(o => o.kat === kat).reduce((sum, o) => sum + o.total, 0);
+            
+            let katTotalReal = katInReal + katOutReal;
+            let katVarian = katAnggaran - katTotalReal;
+
+            grandAnggaran += katAnggaran;
+            grandIn += katInReal;
+            grandOut += katOutReal;
+            grandTotalReal += katTotalReal;
+            grandVarian += katVarian;
+
+            let ketRekap = "Belum ada realisasi";
+            if (katTotalReal > 0) {
+                if (katOutReal > 0 && katInReal < katAnggaran) {
+                    ketRekap = "Ada efisiensi & pembelian diluar budget";
+                } else if (katOutReal > 0) {
+                    ketRekap = "Ada pembelian diluar budget";
+                } else if (katVarian > 0) {
+                    ketRekap = "Ada efisiensi / hemat budget";
+                } else {
+                    ketRekap = "Sesuai Anggaran";
+                }
+            }
+
+            let tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align:center;">${index + 1}</td>
+                <td>${kat}</td>
+                <td>${formatRp(katAnggaran)}</td>
+                <td>${formatRp(katInReal)}</td>
+                <td>${formatRp(katOutReal)}</td>
+                <td>${formatRp(katTotalReal)}</td>
+                <td style="color:${katVarian < 0 ? 'red':'green'}">${formatRp(katVarian)}</td>
+                <td>${ketRekap}</td>
+            `;
+            bodyRekap.appendChild(tr);
+
+            let sisaHemat = Math.max(0, katAnggaran - katInReal);
+
+            rekapCategoryData.push({
+                kat: kat,
+                anggaran: katAnggaran,
+                inReal: katInReal,
+                outReal: katOutReal,
+                sisaHemat: sisaHemat,
+                totalReal: katTotalReal
+            });
+        });
+
+        document.getElementById('rekap-total-anggaran').innerText = formatRp(grandAnggaran);
+        document.getElementById('rekap-total-in').innerText = formatRp(grandIn);
+        document.getElementById('rekap-total-out').innerText = formatRp(grandOut);
+        document.getElementById('rekap-grand-total').innerText = formatRp(grandTotalReal);
+        document.getElementById('rekap-total-varian').innerText = formatRp(grandVarian);
+
+        // UPDATE TAB 5: CHART DASHBOARD VISUALISASI
+        updateExecutiveDashboard(grandAnggaran, grandIn, grandOut, grandVarian, rekapCategoryData);
+
+        // Switch Ke Tab Detail Realisasi
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-detail').classList.add('active');
+        document.querySelectorAll('.tab-btn')[2].classList.add('active');
+    }
+
+    /* FUNGSI UNTUK GENERATE / REFRESH DASHBOARD CHART VISUALISASI */
+    function updateExecutiveDashboard(grandAnggaran, grandIn, grandOut, grandVarian, categoriesData) {
+        // Update KPI Cards
+        document.getElementById('kpi-anggaran').innerText = formatRp(grandAnggaran);
+        document.getElementById('kpi-in').innerText = formatRp(grandIn);
+        document.getElementById('kpi-out').innerText = formatRp(grandOut);
+        document.getElementById('kpi-sisa').innerText = formatRp(grandVarian);
+
+        let labels = categoriesData.map(c => c.kat);
+        let dataIn = categoriesData.map(c => c.inReal);
+        let dataOut = categoriesData.map(c => c.outReal);
+        let dataSisa = categoriesData.map(c => c.sisaHemat);
+        let dataAnggaran = categoriesData.map(c => c.anggaran);
+
+        // Destroy existing chart jika sudah pernah dibuat
+        if (chartStackedInstance) chartStackedInstance.destroy();
+        if (chartCompareInstance) chartCompareInstance.destroy();
+
+        // 1. Horizontal Stacked Bar Chart (Masuk Budget, Over/Out Budget, Sisa/Sesuai Budget)
+        let ctxStacked = document.getElementById('chartCategoryStacked').getContext('2d');
+        chartStackedInstance = new Chart(ctxStacked, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Masuk Budget (In)',
+                        data: dataIn,
+                        backgroundColor: '#0284c7', // Biru
+                    },
+                    {
+                        label: 'Over / Out Budget (Biaya Lainnya)',
+                        data: dataOut,
+                        backgroundColor: '#c62828', // Merah
+                    },
+                    {
+                        label: 'Sisa / Sesuai Budget (Utuh/Hemat)',
+                        data: dataSisa,
+                        backgroundColor: '#2e7d32', // Hijau
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y', // Membikin Horizontal Bar Chart
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        stacked: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
+                            }
+                        }
+                    },
+                    y: {
+                        stacked: true
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false // Menggunakan legend kustom HTML di atas agar konsisten
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let value = context.raw || 0;
+                                return label + ': ' + formatRp(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Grouped Comparison Bar Chart (Total Plafon Anggaran vs Realisasi Total)
+        let ctxCompare = document.getElementById('chartCategoryCompare').getContext('2d');
+        chartCompareInstance = new Chart(ctxCompare, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Plafon Anggaran (Planning)',
+                        data: dataAnggaran,
+                        backgroundColor: '#1F497D' // Navy Kantor Pusat
+                    },
+                    {
+                        label: 'Total Realisasi Aktual (In + Out)',
+                        data: categoriesData.map(c => c.totalReal),
+                        backgroundColor: '#059669' // Emerald Green
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: function(value) {
+                                return 'Rp ' + (value / 1000000).toFixed(1) + ' Jt';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let value = context.raw || 0;
+                                return label + ': ' + formatRp(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function collectAppData() {
+        let anggaranData = [];
+        document.querySelectorAll('#body-anggaran tr').forEach(tr => {
+            anggaranData.push({
+                kat: tr.querySelector('.anggaran-kat').value,
+                item: tr.querySelector('.anggaran-item').value,
+                val: tr.querySelector('.anggaran-val').value,
+                ket: tr.querySelector('.anggaran-ket').value
+            });
+        });
+
+        let bonCardsData = [];
+        document.querySelectorAll('.bon-card').forEach(card => {
+            let items = [];
+            card.querySelectorAll('.bon-items-body tr').forEach(tr => {
+                items.push({
+                    kat: tr.querySelector('.item-kat').value,
+                    item: tr.querySelector('.item-nama').value,
+                    hargaAwal: tr.querySelector('.item-harga-awal').value,
+                    adjType: tr.querySelector('.item-adj-type').value,
+                    adjVal: tr.querySelector('.item-adj-val').value,
+                    total: tr.querySelector('.item-total').value,
+                    status: tr.querySelector('.item-status').value,
+                    ket: tr.querySelector('.item-ket').value
+                });
+            });
+
+            bonCardsData.push({
+                id: card.id,
+                no: card.querySelector('.bon-no').value,
+                tgl: card.querySelector('.bon-tgl').value,
+                vendor: card.querySelector('.bon-vendor').value,
+                items: items
+            });
+        });
+
+        return {
+            anggaran: anggaranData,
+            bonCards: bonCardsData,
+            bonCounter: bonCounter,
+            activeBonId: activeBonId
+        };
+    }
+
+    function saveDataToLocalStorage() {
+        let appData = collectAppData();
+        localStorage.setItem('anggaran_app_draft', JSON.stringify(appData));
+        
+        let statusBadge = document.getElementById('save-status');
+        if (statusBadge) {
+            statusBadge.innerText = "✓ Tersimpan";
+            setTimeout(() => { statusBadge.innerText = "✓ Autosave Aktif"; }, 2000);
+        }
+    }
+
+    function exportJSONData() {
+        let appData = collectAppData();
+        let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+        let downloadAnchor = document.createElement('a');
+        let today = new Date().toISOString().slice(0, 10);
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `Backup_Laporan_Anggaran_${today}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    function importJSONData(event) {
+        let file = event.target.files[0];
+        if (!file) return;
+
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                let importedData = JSON.parse(e.target.result);
+                localStorage.setItem('anggaran_app_draft', JSON.stringify(importedData));
+                loadDataFromLocalStorage();
+                alert("Progress data JSON berhasil dibuka dan dimuat!");
+            } catch (err) {
+                alert("Gagal membaca file JSON. Pastikan format file benar.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function loadDataFromLocalStorage() {
+        let saved = localStorage.getItem('anggaran_app_draft');
+        if (!saved) return;
+
+        try {
+            let appData = JSON.parse(saved);
+            
+            if (appData.anggaran && appData.anggaran.length > 0) {
+                let tbody = document.getElementById('body-anggaran');
+                tbody.innerHTML = "";
+                appData.anggaran.forEach((ang, idx) => {
+                    let tr = createAnggaranRow(idx + 1, ang.kat, ang.item, ang.val, ang.ket);
+                    tbody.appendChild(tr);
+                });
+                calculateTotalAnggaran();
+            }
+
+            if (appData.bonCards && appData.bonCards.length > 0) {
+                let container = document.getElementById('bon-tables-container');
+                container.innerHTML = "";
+                bonCounter = appData.bonCounter || 0;
+
+                appData.bonCards.forEach(c => {
+                    let card = document.createElement('div');
+                    card.className = "bon-card";
+                    card.id = c.id;
+
+                    let itemsHtml = c.items.map(item => {
+                        let katOptions = KATEGORI_LIST.map(k => `<option value="${k}" ${k === item.kat ? 'selected':''}>${k}</option>`).join('');
+                        let statusClass = (item.status === 'OUT') ? 'status-out' : 'status-in';
+
+                        return `
+                            <tr>
+                                <td><select class="item-kat" onchange="handleKatChangeInBon(this); saveDataToLocalStorage();">${katOptions}</select></td>
+                                <td><input type="text" class="item-nama" list="datalist-filtered-items" value="${item.item || ''}" onfocus="handleKatChangeInBon(this.closest('tr').querySelector('.item-kat'))" oninput="handleItemNamaChange(this)"></td>
+                                <td><input type="text" class="item-harga-awal" placeholder="0" value="${item.hargaAwal || item.total || ''}" oninput="this.value = formatNumberInput(this.value); calculateTotalBon('${c.id}'); saveDataToLocalStorage();"></td>
+                                <td>
+                                    <select class="item-adj-type" onchange="calculateTotalBon('${c.id}'); saveDataToLocalStorage();">
+                                        <option value="NONE" ${item.adjType === 'NONE' ? 'selected':''}>Tanpa Adj.</option>
+                                        <option value="DISCOUNT" ${item.adjType === 'DISCOUNT' ? 'selected':''}>- Diskon</option>
+                                        <option value="PLASTIC" ${item.adjType === 'PLASTIC' ? 'selected':''}>+ Plastik</option>
+                                        <option value="PARKING" ${item.adjType === 'PARKING' ? 'selected':''}>+ Parkir</option>
+                                    </select>
+                                </td>
+                                <td><input type="text" class="item-adj-val" placeholder="0" value="${item.adjVal || ''}" oninput="this.value = formatNumberInput(this.value); calculateTotalBon('${c.id}'); saveDataToLocalStorage();"></td>
+                                <td><input type="text" class="item-total" placeholder="0" value="${item.total || ''}" readonly style="background:#f1f5f9; font-weight:bold;"></td>
+                                <td>
+                                    <select class="item-status ${statusClass}" onchange="updateStatusColor(this); saveDataToLocalStorage();">
+                                        <option value="IN" ${item.status === 'IN' ? 'selected':''}>IN BUDGET</option>
+                                        <option value="OUT" ${item.status === 'OUT' ? 'selected':''}>OUT BUDGET</option>
+                                    </select>
+                                </td>
+                                <td><input type="text" class="item-ket" value="${item.ket || ''}" oninput="saveDataToLocalStorage()"></td>
+                                <td style="text-align:center;"><button class="btn btn-remove" onclick="this.closest('tr').remove(); calculateTotalBon('${c.id}'); saveDataToLocalStorage();">X</button></td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    card.innerHTML = `
+                        <div class="bon-card-header">
+                            <h4 style="color:var(--navy); margin:0;" id="title-${c.id}">${(c.no || 'BON / NOTA').toUpperCase()}</h4>
+                            <button class="btn btn-remove" onclick="removeBonCard('${c.id}')">🗑️ Hapus Bon Ini</button>
+                        </div>
+                        
+                        <div class="bon-header-summary">
+                            <span class="summary-title">🏪 Toko / Vendor: <span class="top-summary-vendor" style="color:var(--navy);">${c.vendor || '-'}</span></span>
+                            <span class="summary-total">🛍️ Total Bon: <span class="top-summary-total">Rp 0</span></span>
+                        </div>
+
+                        <div class="bon-header-inputs">
+                            <div style="flex:1;">
+                                <label>No. Nota / Bon:</label>
+                                <input type="text" class="bon-no" value="${c.no}" oninput="updateSubTabTitle('${c.id}'); saveDataToLocalStorage();">
+                            </div>
+                            <div style="flex:1;">
+                                <label>Tanggal:</label>
+                                <input type="date" class="bon-tgl" value="${c.tgl}" onchange="saveDataToLocalStorage()">
+                            </div>
+                            <div style="flex:1;">
+                                <label>Nama Toko / Vendor:</label>
+                                <input type="text" class="bon-vendor" value="${c.vendor}" oninput="calculateTotalBon('${c.id}'); saveDataToLocalStorage();">
+                            </div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 160px;">Kategori Biaya</th>
+                                    <th>Nama Item / Barang</th>
+                                    <th style="width: 120px;">Harga (Rp)</th>
+                                    <th style="width: 110px;">Penyesuaian</th>
+                                    <th style="width: 100px;">Nominal (Rp)</th>
+                                    <th style="width: 120px;">Total Net (Rp)</th>
+                                    <th style="width: 120px;">Status Budget</th>
+                                    <th>Keterangan Realisasi</th>
+                                    <th style="width: 40px; text-align:center;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bon-items-body">${itemsHtml}</tbody>
+                            <tfoot>
+                                <tr class="total-row">
+                                    <td colspan="5" style="text-align: right;">TOTAL BON INI:</td>
+                                    <td class="bon-total-val" style="color:var(--navy);">Rp 0</td>
+                                    <td colspan="3"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        <button class="btn btn-add" onclick="addBonItem(this)">+ Tambah Barang di Bon Ini</button>
+                    `;
+                    container.appendChild(card);
+                    calculateTotalBon(c.id);
+                });
+
+                renderSubTabs();
+                switchBonTab(appData.activeBonId || appData.bonCards[0].id);
+            }
+        } catch (e) {
+            console.error("Gagal membaca draft dari LocalStorage", e);
+        }
+    }
+
+    /* EXPORT EXCEL DENGAN STYLING RAPI UNTUK TAB DETAIL REALISASI */
+    function exportDetailToExcel() {
+        let wb = XLSX.utils.book_new();
+        let element = document.getElementById('table-detail-export');
+        let ws = XLSX.utils.table_to_sheet(element);
+
+        ws['!cols'] = [
+            { wch: 8 },  // No
+            { wch: 22 }, // Kategori
+            { wch: 30 }, // Item
+            { wch: 18 }, // Anggaran
+            { wch: 18 }, // Realisasi
+            { wch: 18 }, // Varian
+            { wch: 25 }, // Nota
+            { wch: 30 }  // Ket
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Detail_Realisasi");
+        XLSX.writeFile(wb, "Detail_Realisasi_Karawang.xlsx");
+    }
+
+    /* EXPORT EXCEL DENGAN STYLING RAPI UNTUK TAB REKAPITULASI */
+    function exportRekapToExcel() {
+        let wb = XLSX.utils.book_new();
+        let element = document.getElementById('table-rekap-export');
+        let ws = XLSX.utils.table_to_sheet(element);
+
+        ws['!cols'] = [
+            { wch: 8 },  // No
+            { wch: 25 }, // Kategori
+            { wch: 20 }, // Anggaran
+            { wch: 22 }, // In Budget
+            { wch: 22 }, // Out Budget
+            { wch: 20 }, // Total Realisasi
+            { wch: 20 }, // Varian
+            { wch: 35 }  // Ket
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Rekapitulasi");
+        XLSX.writeFile(wb, "Rekapitulasi_Realisasi_Karawang.xlsx");
+    }
+
+    /* EXPORT EXCEL RAPI UNTUK DASHBOARD CHART VISUALISASI */
+    function exportChartDashboardToExcel() {
+        let sheetData = [
+            ["EXECUTIVE DASHBOARD REALISASI ANGGARAN"],
+            ["Cabang Karawang - Pertiwi Resources"],
+            [],
+            ["RINGKASAN METRIK UTAMA (KPI)"],
+            ["Plafon Total Anggaran", document.getElementById('kpi-anggaran').innerText],
+            ["Realisasi Sesuai Budget (In)", document.getElementById('kpi-in').innerText],
+            ["Biaya Diluar Budget (Over/Out)", document.getElementById('kpi-out').innerText],
+            ["Sisa / Hemat Budget", document.getElementById('kpi-sisa').innerText],
+            [],
+            ["DATA DASHBOARD VISUALISASI PER KATEGORI"],
+            ["NO", "KATEGORI BIAYA", "PLAFON ANGGARAN (Rp)", "MASUK BUDGET (IN) (Rp)", "OVER / OUT BUDGET (Rp)", "TOTAL REALISASI (Rp)", "SISA / HEMAT BUDGET (Rp)"]
+        ];
+
+        let index = 1;
+        document.querySelectorAll('#body-rekap tr').forEach(tr => {
+            let tds = tr.querySelectorAll('td');
+            if (tds.length >= 7) {
+                let kat = tds[1].innerText;
+                let anggaran = tds[2].innerText;
+                let inReal = tds[3].innerText;
+                let outReal = tds[4].innerText;
+                let totalReal = tds[5].innerText;
+                let varian = tds[6].innerText;
+
+                sheetData.push([
+                    index++,
+                    kat,
+                    anggaran,
+                    inReal,
+                    outReal,
+                    totalReal,
+                    varian
+                ]);
+            }
+        });
+
+        sheetData.push([]);
+        sheetData.push([
+            "TOTAL",
+            "TOTAL BIAYA OPERASIONAL",
+            document.getElementById('rekap-total-anggaran').innerText,
+            document.getElementById('rekap-total-in').innerText,
+            document.getElementById('rekap-total-out').innerText,
+            document.getElementById('rekap-grand-total').innerText,
+            document.getElementById('rekap-total-varian').innerText
+        ]);
+
+        let wb = XLSX.utils.book_new();
+        let ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+        ws['!cols'] = [
+            { wch: 8 },  // No
+            { wch: 28 }, // Kategori
+            { wch: 22 }, // Anggaran
+            { wch: 22 }, // In
+            { wch: 22 }, // Out
+            { wch: 22 }, // Total Realisasi
+            { wch: 22 }  // Sisa
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Dashboard_Visual");
+        XLSX.writeFile(wb, "Executive_Dashboard_Realisasi_Karawang.xlsx");
+    }
+</script>
+
+</body>
+</html>
