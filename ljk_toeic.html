@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input LJK TOEIC - Build Better Communication</title>
+    <style>
+        :root {
+            --primary: #d32f2f;
+            --primary-dark: #b71c1c;
+            --bg: #fdf2f2;
+            --card-bg: #ffffff;
+            --text: #202124;
+            --border: #e0e0e0;
+            --unfilled-bg: #fff9c4;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { max-width: 1200px; width: 100%; }
+
+        .header {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            border-top: 8px solid var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            margin-bottom: 20px;
+        }
+
+        .header h1 { margin: 0 0 6px 0; font-size: 22px; color: var(--primary); }
+        .header p { margin: 0; color: #5f6368; font-size: 13px; font-weight: bold; }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 16px;
+            border-bottom: 2px solid #f5c6c6;
+            padding-bottom: 8px;
+            color: var(--primary-dark);
+        }
+
+        .identity-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .identity-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.field-inline { flex: 1; min-width: 200px; }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #444;
+        }
+
+        .form-group input[type="text"], 
+        .form-group input[type="date"] { 
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px; 
+            box-sizing: border-box;
+            height: 36px;
+        }
+
+        .phone-grid {
+            display: flex;
+            gap: 4px;
+        }
+        .phone-grid input {
+            width: 26px;
+            height: 34px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 15px;
+            color: #111;
+            border: 1px solid #90a4ae;
+            border-radius: 3px;
+            box-sizing: border-box;
+            background: #fff;
+            padding: 0;
+        }
+        .phone-grid input:focus {
+            border-color: var(--primary);
+            outline: none;
+            background: #ffebee;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--primary);
+            background: white;
+            color: var(--primary-dark);
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .mode-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .ljk-layout {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            overflow-x: auto;
+        }
+
+        .ljk-column {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .col-header {
+            background: #f8d7da;
+            color: #721c24;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            padding: 4px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .answer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2px 4px;
+            border-bottom: 1px solid #f0f0f0;
+            background-color: var(--unfilled-bg);
+            border-radius: 3px;
+            margin-bottom: 2px;
+            transition: background 0.2s;
+        }
+        .answer-row.filled {
+            background-color: transparent;
+        }
+        .answer-row.active-row {
+            outline: 2px solid var(--primary);
+            background-color: #ffebee !important;
+        }
+
+        .num-label { font-size: 11px; font-weight: bold; width: 26px; color: #333; }
+
+        .options { display: flex; gap: 3px; }
+        .options label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            border: 1px solid #ccc;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .options input[type="radio"] { display: none; }
+        .options input[type="radio"]:checked + span {
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .string-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .string-col {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .string-col textarea {
+            width: 100%;
+            height: 110px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+
+        .char-counter {
+            font-size: 11px;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn-submit {
+            flex: 2;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-submit:hover { background: var(--primary-dark); }
+
+        .btn-check {
+            flex: 1;
+            padding: 12px;
+            background: #ffa000;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-clear {
+            flex: 1;
+            padding: 12px;
+            background: #757575;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.info { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>BUILD BETTER COMMUNICATION - ENGLISH TRAINING SPECIALIST</h1>
+        <p>BRANCH KARAWANG — LEMBAR JAWABAN TES TOEIC</p>
+    </div>
+
+    <form id="toeicForm">
+        <!-- Data Identitas Persis LJK Fisik TOEIC -->
+        <div class="card">
+            <h2>Data Identitas Peserta</h2>
+            <div class="identity-container">
+                <div class="identity-row">
+                    <div class="form-group field-inline">
+                        <label>NAMA PESERTA:</label>
+                        <input type="text" name="nama" placeholder="Gunakan Huruf Kapital" required style="text-transform: uppercase;">
+                    </div>
+                    <div class="form-group field-inline">
+                        <label>TANGGAL UJIAN:</label>
+                        <input type="date" name="tanggal" required>
+                    </div>
+                    <div class="form-group field-inline">
+                        <label>NO. HP (12 Digit):</label>
+                        <div class="phone-grid" id="phoneBox"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+            <div class="mode-btn active" id="btnMode1" onclick="switchMode(1)">Mode 1: LJK Grid (Keyboard 1,2,3,4)</div>
+            <div class="mode-btn" id="btnMode2" onclick="switchMode(2)">Mode 2: Text String Input (Per Kolom)</div>
+        </div>
+
+        <!-- Container Mode 1 -->
+        <div class="card" id="containerMode1">
+            <h2>Mode 1: Tata Letak LJK Fisik TOEIC (1=A, 2=B, 3=C, 4=D | Enter=Maju, Backspace=Mundur)</h2>
+            <div class="ljk-layout">
+                <div class="ljk-column">
+                    <div class="col-header">Part 1 (1-10)</div>
+                    <div id="col1_p1"></div>
+                    <div class="col-header" style="margin-top:8px;">Part 2 (11-40) [A-C]</div>
+                    <div id="col1_p2"></div>
+                </div>
+                <div class="ljk-column">
+                    <div class="col-header">Part 3 (41-70)</div>
+                    <div id="col2_p3"></div>
+                    <div class="col-header" style="margin-top:8px;">Part 4 (71-80)</div>
+                    <div id="col2_p4"></div>
+                </div>
+                <div class="ljk-column">
+                    <div class="col-header">Part 4 (81-100)</div>
+                    <div id="col3_p4"></div>
+                    <div class="col-header" style="margin-top:8px;">Part 5 (101-121)</div>
+                    <div id="col3_p5"></div>
+                </div>
+                <div class="ljk-column">
+                    <div class="col-header">Part 5 (122-140)</div>
+                    <div id="col4_p5"></div>
+                    <div class="col-header" style="margin-top:8px;">Part 6 (141-162)</div>
+                    <div id="col4_p6"></div>
+                </div>
+                <div class="ljk-column">
+                    <div class="col-header">Lanjutan (163-200)</div>
+                    <div id="col5"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Container Mode 2 (5 Input Box) -->
+        <div class="card" id="containerMode2" style="display: none;">
+            <h2>Mode 2: Text String Input (Dipecah 5 Kolom — Tekan Enter untuk Lanjut Kolom)</h2>
+            <p style="font-size: 11px; color: #666; margin-top: -6px; margin-bottom: 12px;">
+                Ketik jawaban per kolom. Gunakan tanda <code>-</code> atau spasi jika ada nomor yang ke-skip.
+            </p>
+            <div class="string-grid">
+                <div class="string-col">
+                    <div class="col-header">Kolom 1 (1-40)</div>
+                    <textarea id="str_col1" placeholder="Ketik 40 karakter..."></textarea>
+                    <div class="char-counter" id="cnt_col1">0 / 40</div>
+                </div>
+                <div class="string-col">
+                    <div class="col-header">Kolom 2 (41-80)</div>
+                    <textarea id="str_col2" placeholder="Ketik 40 karakter..."></textarea>
+                    <div class="char-counter" id="cnt_col2">0 / 40</div>
+                </div>
+                <div class="string-col">
+                    <div class="col-header">Kolom 3 (81-121)</div>
+                    <textarea id="str_col3" placeholder="Ketik 41 karakter..."></textarea>
+                    <div class="char-counter" id="cnt_col3">0 / 41</div>
+                </div>
+                <div class="string-col">
+                    <div class="col-header">Kolom 4 (122-162)</div>
+                    <textarea id="str_col4" placeholder="Ketik 41 karakter..."></textarea>
+                    <div class="char-counter" id="cnt_col4">0 / 41</div>
+                </div>
+                <div class="string-col">
+                    <div class="col-header">Kolom 5 (163-200)</div>
+                    <textarea id="str_col5" placeholder="Ketik 38 karakter..."></textarea>
+                    <div class="char-counter" id="cnt_col5">0 / 38</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tombol Aksi -->
+        <div class="btn-group">
+            <button type="submit" class="btn-submit">Kirim Data ke Google Sheets</button>
+            <button type="button" class="btn-check" onclick="checkSkippedAnswers()">Cek Soal Kosong</button>
+            <button type="button" class="btn-clear" onclick="resetForm(true)">Clear Form</button>
+        </div>
+
+        <div id="statusMsg" class="status"></div>
+    </form>
+</div>
+
+<script>
+    // MASUKKAN URL WEB APP APPS SCRIPT TOEIC ANDA DI SINI
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyyxhuWO9lOiHYGlXcA9jQc_sVjyL4JI71kWAbyVZrfD1BHudRrMaat4O56nuCRaBMk/exec';
+
+    let activeMode = 1;
+
+    // Render Box No. HP (12 Kotak)
+    const phoneBox = document.getElementById('phoneBox');
+    for (let i = 0; i < 12; i++) {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.maxLength = 1;
+        inp.dataset.idx = i;
+        inp.addEventListener('input', function(e) {
+            if (this.value && i < 11) {
+                phoneBox.children[i + 1].focus();
+            }
+        });
+        inp.addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace' && !this.value && i > 0) {
+                phoneBox.children[i - 1].focus();
+            }
+        });
+        phoneBox.appendChild(inp);
+    }
+
+    // Render Baris Jawaban
+    function renderRow(num, optionsCount = 4) {
+        const opts = optionsCount === 3 ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
+        return `
+            <div class="answer-row" id="row_Q${num}">
+                <span class="num-label">${num}.</span>
+                <div class="options">
+                    ${opts.map(opt => `
+                        <label>
+                            <input type="radio" name="Q${num}" value="${opt}" onchange="markFilled('Q${num}')">
+                            <span>${opt}</span>
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function markFilled(id) {
+        const row = document.getElementById('row_' + id);
+        if (row) row.classList.add('filled');
+    }
+
+    // Render Kolom LJK Sesuai Gambar LJK TOEIC
+    let col1_p1 = '', col1_p2 = '', col2_p3 = '', col2_p4 = '';
+    let col3_p4 = '', col3_p5 = '', col4_p5 = '', col4_p6 = '', col5 = '';
+
+    // Kolom 1
+    for(let i=1; i<=10; i++) col1_p1 += renderRow(i, 4);   // Part 1 (1-10)
+    for(let i=11; i<=40; i++) col1_p2 += renderRow(i, 3);  // Part 2 (11-40, opsi A-C)
+
+    // Kolom 2
+    for(let i=41; i<=70; i++) col2_p3 += renderRow(i, 4);  // Part 3 (41-70)
+    for(let i=71; i<=80; i++) col2_p4 += renderRow(i, 4);  // Part 4 (71-80)
+
+    // Kolom 3
+    for(let i=81; i<=100; i++) col3_p4 += renderRow(i, 4); // Part 4 cont (81-100)
+    for(let i=101; i<=121; i++) col3_p5 += renderRow(i, 4);// Part 5 (101-121)
+
+    // Kolom 4
+    for(let i=122; i<=140; i++) col4_p5 += renderRow(i, 4);// Part 5 cont (122-140)
+    for(let i=141; i<=162; i++) col4_p6 += renderRow(i, 4);// Part 6 (141-162)
+
+    // Kolom 5
+    for(let i=163; i<=200; i++) col5 += renderRow(i, 4);   // Lanjutan (163-200)
+
+    document.getElementById('col1_p1').innerHTML = col1_p1;
+    document.getElementById('col1_p2').innerHTML = col1_p2;
+    document.getElementById('col2_p3').innerHTML = col2_p3;
+    document.getElementById('col2_p4').innerHTML = col2_p4;
+    document.getElementById('col3_p4').innerHTML = col3_p4;
+    document.getElementById('col3_p5').innerHTML = col3_p5;
+    document.getElementById('col4_p5').innerHTML = col4_p5;
+    document.getElementById('col4_p6').innerHTML = col4_p6;
+    document.getElementById('col5').innerHTML = col5;
+
+    function switchMode(mode) {
+        activeMode = mode;
+        if (mode === 1) {
+            document.getElementById('btnMode1').classList.add('active');
+            document.getElementById('btnMode2').classList.remove('active');
+            document.getElementById('containerMode1').style.display = 'block';
+            document.getElementById('containerMode2').style.display = 'none';
+        } else {
+            document.getElementById('btnMode2').classList.add('active');
+            document.getElementById('btnMode1').classList.remove('active');
+            document.getElementById('containerMode2').style.display = 'block';
+            document.getElementById('containerMode1').style.display = 'none';
+        }
+    }
+
+    // Urutan Soal 1 s/d 200
+    let questionOrder = [];
+    for(let i=1; i<=200; i++) questionOrder.push('Q' + i);
+
+    let activeQIndex = 0;
+
+    function updateActiveHighlight() {
+        document.querySelectorAll('.answer-row').forEach(r => r.classList.remove('active-row'));
+        let qId = questionOrder[activeQIndex];
+        let targetRow = document.getElementById('row_' + qId);
+        if(targetRow) {
+            targetRow.classList.add('active-row');
+            targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    // Navigasi Keyboard
+    document.addEventListener('keydown', function(e) {
+        if (activeMode !== 1) return;
+        const active = document.activeElement;
+        if (active.tagName === 'INPUT' && active.type !== 'radio') return;
+        if (active.tagName === 'TEXTAREA') return;
+
+        const keyMap = { '1': 'A', '2': 'B', '3': 'C', '4': 'D', 'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D' };
+        const key = e.key.toLowerCase();
+
+        if (keyMap[key]) {
+            let qId = questionOrder[activeQIndex];
+            let radio = document.querySelector(`input[name="${qId}"][value="${keyMap[key]}"]`);
+            if (radio) {
+                radio.checked = true;
+                markFilled(qId);
+                if (activeQIndex < questionOrder.length - 1) {
+                    activeQIndex++;
+                    updateActiveHighlight();
+                }
+            }
+        } else if (e.key === 'Backspace' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (activeQIndex > 0) {
+                activeQIndex--;
+                updateActiveHighlight();
+            }
+        } else if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            if (activeQIndex < questionOrder.length - 1) {
+                activeQIndex++;
+                updateActiveHighlight();
+            }
+        }
+    });
+
+    updateActiveHighlight();
+
+    // Sync Mode 2 ke Grid Mode 1
+    const strBoxes = [
+        { id: 'str_col1', cnt: 'cnt_col1', max: 40, offset: 0 },
+        { id: 'str_col2', cnt: 'cnt_col2', max: 40, offset: 40 },
+        { id: 'str_col3', cnt: 'cnt_col3', max: 41, offset: 80 },
+        { id: 'str_col4', cnt: 'cnt_col4', max: 41, offset: 121 },
+        { id: 'str_col5', cnt: 'cnt_col5', max: 38, offset: 162 }
+    ];
+
+    function syncMode2ToGrid() {
+        document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+        document.querySelectorAll('.answer-row').forEach(r => r.classList.remove('filled'));
+
+        let fullStr = '';
+        strBoxes.forEach(box => {
+            const el = document.getElementById(box.id);
+            const val = el.value.toUpperCase();
+            document.getElementById(box.cnt).innerText = `${val.length} / ${box.max}`;
+            fullStr += val;
+        });
+
+        let chars = fullStr.split('');
+        chars.forEach((char, idx) => {
+            if (idx < questionOrder.length && ['A','B','C','D'].includes(char)) {
+                let qId = questionOrder[idx];
+                let r = document.querySelector(`input[name="${qId}"][value="${char}"]`);
+                if (r) { r.checked = true; markFilled(qId); }
+            }
+        });
+    }
+
+    strBoxes.forEach((box, index) => {
+        const el = document.getElementById(box.id);
+        el.addEventListener('input', syncMode2ToGrid);
+        el.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (index < strBoxes.length - 1) {
+                    document.getElementById(strBoxes[index + 1].id).focus();
+                }
+            }
+        });
+    });
+
+    // Cek Soal Kosong
+    function checkSkippedAnswers() {
+        let missing = [];
+        for (let i = 1; i <= 200; i++) { 
+            if (!document.querySelector(`input[name="Q${i}"]:checked`)) {
+                missing.push(`No.${i}`); 
+            }
+        }
+
+        const statusMsg = document.getElementById('statusMsg');
+        statusMsg.style.display = 'block';
+
+        if (missing.length === 0) {
+            statusMsg.className = 'status success';
+            statusMsg.innerText = 'Semua jawaban sudah terisi lengkap (200 Soal)!';
+        } else {
+            statusMsg.className = 'status info';
+            statusMsg.innerText = `Ada ${missing.length} soal terlewati: ` + missing.slice(0, 15).join(', ') + (missing.length > 15 ? ' ...dan lainnya.' : '');
+        }
+    }
+
+    // Clear Form
+    function resetForm(confirmReset) {
+        if (confirmReset && !confirm("Apakah Anda yakin ingin menghapus semua isian form?")) return;
+        
+        document.getElementById('toeicForm').reset();
+        document.querySelectorAll('#phoneBox input').forEach(inp => inp.value = '');
+        document.querySelectorAll('.answer-row').forEach(row => row.classList.remove('filled'));
+        
+        strBoxes.forEach(box => {
+            document.getElementById(box.id).value = '';
+            document.getElementById(box.cnt).innerText = `0 / ${box.max}`;
+        });
+        
+        const statusMsg = document.getElementById('statusMsg');
+        statusMsg.style.display = 'none';
+        activeQIndex = 0;
+        updateActiveHighlight();
+    }
+
+    // Submit Form Event
+    document.getElementById('toeicForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const statusMsg = document.getElementById('statusMsg');
+
+        let phoneNo = '';
+        document.querySelectorAll('#phoneBox input').forEach(inp => phoneNo += inp.value);
+
+        statusMsg.className = 'status';
+        statusMsg.style.display = 'block';
+        statusMsg.innerText = 'Mengirim data ke Google Sheets...';
+
+        const formData = new FormData(this);
+        const data = {};
+        formData.forEach((value, key) => { data[key] = value; });
+        data['nohp'] = phoneNo;
+
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(() => {
+            statusMsg.className = 'status success';
+            statusMsg.innerText = 'Data TOEIC Berhasil Dikirim ke Spreadsheet!';
+        })
+        .catch(error => {
+            statusMsg.className = 'status error';
+            statusMsg.innerText = 'Gagal mengirim data. Periksa koneksi internet Anda.';
+        });
+    });
+</script>
+
+</body>
+</html>
