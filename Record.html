@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pilihan Tautan Record</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px 30px;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            text-align: center;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            margin-bottom: 32px;
+        }
+
+        .links-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px 20px;
+            border-radius: 14px;
+            text-decoration: none;
+            color: #f8fafc;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .card-link:hover {
+            background: #2563eb;
+            border-color: #3b82f6;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+            color: #ffffff;
+        }
+
+        .card-link .icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-right: 14px;
+        }
+
+        .link-content {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+
+        .arrow {
+            font-size: 1.2rem;
+            opacity: 0.6;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .card-link:hover .arrow {
+            opacity: 1;
+            transform: translateX(5px);
+        }
+
+        /* Variasi khusus untuk tautan aksi utama */
+        .card-link.primary-btn {
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: none;
+        }
+
+        .card-link.primary-btn:hover {
+            background: linear-gradient(135deg, #047857, #059669);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Record Center</h1>
+        <p class="subtitle">Pilih layanan atau template record di bawah ini</p>
+
+        <div class="links-wrapper">
+            <!-- Tautan 1 -->
+            <a href="https://drive.google.com/file/d/1yIuron_l5tfFbCd6Ny7o7awbidm1sRli/preview" target="_blank" class="card-link">
+                <div class="link-content">
+                    <div class="icon">📄</div>
+                    <span>Template Record (1 page)</span>
+                </div>
+                <span class="arrow">➔</span>
+            </a>
+
+            <!-- Tautan 2 -->
+            <a href="https://drive.google.com/file/d/1sncAbHEooe5gkDb5bK7MAOgfn4WXt4SH/preview" target="_blank" class="card-link">
+                <div class="link-content">
+                    <div class="icon">📑</div>
+                    <span>Template Record (2 pages)</span>
+                </div>
+                <span class="arrow">➔</span>
+            </a>
+
+            <!-- Tautan 3 -->
+            <a href="https://script.google.com/a/macros/pertiwi.ac.id/s/AKfycbzD25Nn4oEByC-JU-zzQENQMCVFCexXSEeFsXF91U0B5hLd0XpJsa2Ti8aCKeo2wdIU/exec" target="_blank" class="card-link primary-btn">
+                <div class="link-content">
+                    <div class="icon">🖨️</div>
+                    <span>Input and Print Record</span>
+                </div>
+                <span class="arrow">➔</span>
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>
