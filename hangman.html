@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Freshman Hangman Challenge - College Life Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800;900&family=Space+Grotesk:wght@700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+    
+    .font-heading {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    /* Custom Glassmorphism Cards */
+    .glass-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    /* Key Animation Frames */
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(244, 63, 94, 0.4); }
+      50% { box-shadow: 0 0 30px rgba(244, 63, 94, 0.8); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.5); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .shake-anim {
+      animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    .pop-anim {
+      animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    /* Keypad Letter styling */
+    .key-btn {
+      transition: all 0.15s ease;
+      box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .key-btn:active:not(:disabled) {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .key-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.35;
+      transform: translateY(2px);
+      box-shadow: none;
+    }
+
+    .letter-slot {
+      border-bottom: 4px solid #6366f1;
+      transition: all 0.3s ease;
+    }
+
+    /* Canvas stick figure glow */
+    svg line, svg circle {
+      transition: stroke-dashoffset 0.5s ease;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-6 flex items-center justify-center min-h-screen">
+
+  <div class="w-full max-w-5xl flex flex-col gap-5">
+    
+    <!-- Top Header & Game Status Bar -->
+    <header class="glass-card rounded-2xl p-4 md:px-8 flex flex-wrap items-center justify-between gap-4 border-b-2 border-indigo-500/30">
+      <div class="flex items-center gap-3">
+        <div class="bg-indigo-600 p-3 rounded-xl shadow-lg shadow-indigo-500/30">
+          <i class="fa-solid fa-graduation-cap text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 class="font-heading text-xl md:text-2xl font-bold bg-gradient-to-r from-indigo-400 via-pink-400 to-amber-300 bg-clip-text text-transparent">
+            FRESHMAN HANGMAN
+          </h1>
+          <p class="text-xs text-slate-400 font-semibold">1st Semester College Life Vocabulary</p>
+        </div>
+      </div>
+
+      <!-- Live Stats Controls -->
+      <div class="flex items-center gap-4 md:gap-6 flex-wrap">
+        <!-- Question Counter -->
+        <div class="bg-slate-800/80 px-4 py-2 rounded-xl border border-slate-700/60 flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-indigo-400 text-sm"></i>
+          <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Level</span>
+          <span id="question-progress" class="font-heading text-lg font-bold text-white">1 / 10</span>
+        </div>
+
+        <!-- Score counter -->
+        <div class="bg-slate-800/80 px-4 py-2 rounded-xl border border-slate-700/60 flex items-center gap-2">
+          <i class="fa-solid fa-trophy text-amber-400 text-sm"></i>
+          <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Score</span>
+          <span id="score-display" class="font-heading text-lg font-bold text-amber-300">0</span>
+        </div>
+
+        <!-- Hearts/Lives (3 Max Mistakes) -->
+        <div class="bg-slate-800/80 px-4 py-2 rounded-xl border border-slate-700/60 flex items-center gap-2">
+          <i class="fa-solid fa-heart-pulse text-rose-500 text-sm"></i>
+          <div id="lives-container" class="flex gap-1.5 text-rose-500 text-lg">
+            <i class="fa-solid fa-heart"></i>
+            <i class="fa-solid fa-heart"></i>
+            <i class="fa-solid fa-heart"></i>
+          </div>
+        </div>
+
+        <!-- Mute Audio Toggle Button -->
+        <button id="mute-btn" onclick="toggleMute()" class="bg-slate-800 hover:bg-slate-700 p-3 rounded-xl border border-slate-700 text-slate-300 transition-all">
+          <i id="mute-icon" class="fa-solid fa-volume-high"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Interactive Playground Grid -->
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      
+      <!-- Left Column: Hangman Gallows SVG Visualizer -->
+      <section class="lg:col-span-5 glass-card rounded-2xl p-6 flex flex-col items-center justify-between min-h-[360px]">
+        <div class="w-full flex items-center justify-between mb-2">
+          <span id="mistake-badge" class="bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+            0 / 3 Mistakes
+          </span>
+          <span id="category-tag" class="text-xs text-indigo-300 font-bold uppercase tracking-widest bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+            College Life
+          </span>
+        </div>
+
+        <!-- Hangman SVG Scaffold -->
+        <div class="relative w-full max-w-[280px] h-[260px] my-auto flex justify-center items-center">
+          <svg viewBox="0 0 200 240" class="w-full h-full stroke-slate-300 fill-none" style="stroke-linecap: round; stroke-linejoin: round;">
+            <!-- Gallows Structure -->
+            <line x1="20" y1="220" x2="120" y2="220" stroke-width="6" class="stroke-slate-600" />
+            <line x1="50" y1="220" x2="50" y2="20" stroke-width="6" class="stroke-slate-600" />
+            <line x1="47" y1="20" x2="130" y2="20" stroke-width="6" class="stroke-slate-600" />
+            <line x1="50" y1="60" x2="90" y2="20" stroke-width="4" class="stroke-slate-600" />
+            <line x1="130" y1="20" x2="130" y2="50" stroke-width="4" stroke-dasharray="4 4" class="stroke-amber-400" />
+
+            <!-- STAGE 1 (1st Error): Head and Torso -->
+            <g id="hang-stage-1" class="hidden">
+              <!-- Head -->
+              <circle cx="130" cy="70" r="20" stroke-width="4" class="stroke-rose-400 fill-slate-900/80" />
+              <!-- Face Expressions (Closed eyes) -->
+              <path d="M 122 66 L 128 72 M 128 66 L 122 72" stroke-width="2.5" class="stroke-rose-400" />
+              <path d="M 132 66 L 138 72 M 138 66 L 132 72" stroke-width="2.5" class="stroke-rose-400" />
+              <path d="M 125 80 Q 130 75 135 80" stroke-width="2" class="stroke-rose-400" />
+              <!-- Torso -->
+              <line x1="130" y1="90" x2="130" y2="150" stroke-width="4" class="stroke-rose-400" />
+            </g>
+
+            <!-- STAGE 2 (2nd Error): Left & Right Arms -->
+            <g id="hang-stage-2" class="hidden">
+              <line x1="130" y1="105" x2="100" y2="135" stroke-width="4" class="stroke-rose-400" />
+              <line x1="130" y1="105" x2="160" y2="135" stroke-width="4" class="stroke-rose-400" />
+            </g>
+
+            <!-- STAGE 3 (3rd Error - Game Over): Left & Right Legs -->
+            <g id="hang-stage-3" class="hidden">
+              <line x1="130" y1="150" x2="105" y2="195" stroke-width="4" class="stroke-rose-400" />
+              <line x1="130" y1="150" x2="155" y2="195" stroke-width="4" class="stroke-rose-400" />
+            </g>
+          </svg>
+        </div>
+
+        <div class="w-full text-center">
+          <p id="status-hint" class="text-xs text-slate-400 italic">Guess letter by letter carefully! Max 3 mistakes.</p>
+        </div>
+      </section>
+
+      <!-- Right Column: Clue, Letters Board & Virtual Keyboard -->
+      <section class="lg:col-span-7 glass-card rounded-2xl p-6 flex flex-col justify-between gap-6">
+        
+        <!-- Clue/Question Banner -->
+        <div id="clue-box" class="bg-indigo-950/50 border border-indigo-500/30 p-4 rounded-xl relative overflow-hidden">
+          <div class="flex items-start gap-3">
+            <span class="bg-indigo-600/30 text-indigo-400 p-2 rounded-lg text-lg">
+              <i class="fa-solid fa-lightbulb"></i>
+            </span>
+            <div>
+              <span class="text-xs font-bold text-indigo-400 uppercase tracking-widest block mb-1">Clue / Definition</span>
+              <p id="clue-text" class="text-base md:text-lg font-medium text-slate-100 leading-snug">
+                Loading question...
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden Word Letters Slots -->
+        <div class="py-4 px-2">
+          <div id="word-container" class="flex flex-wrap justify-center items-center gap-2 md:gap-3 min-h-[70px]">
+            <!-- Dynamic Letter Boxes will render here -->
+          </div>
+        </div>
+
+        <!-- Message/Alert Banner for Round Feedback -->
+        <div id="message-banner" class="hidden rounded-xl p-3 text-center text-sm font-bold flex items-center justify-center gap-2">
+          <span id="message-icon"></span>
+          <span id="message-text"></span>
+        </div>
+
+        <!-- Interactive Virtual Alphabet Keyboard -->
+        <div id="keyboard" class="grid grid-cols-7 gap-1.5 md:gap-2">
+          <!-- A-Z Buttons dynamically generated -->
+        </div>
+
+        <!-- Action Control Buttons -->
+        <div class="flex items-center justify-between gap-3 pt-2 border-t border-slate-700/60">
+          <button id="giveup-btn" onclick="giveUpRound()" class="bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 font-bold px-4 py-2.5 rounded-xl text-xs md:text-sm transition-all flex items-center gap-2">
+            <i class="fa-solid fa-flag"></i> Give Up &amp; Reveal Answer
+          </button>
+
+          <button id="next-btn" onclick="nextQuestion()" disabled class="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:border-slate-800 text-white font-bold px-6 py-2.5 rounded-xl text-xs md:text-sm border border-indigo-400/30 shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2">
+            Next Question <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- Final Game Over / Summary Modal -->
+  <div id="summary-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-card max-w-lg w-full rounded-3xl p-6 md:p-8 border-2 border-indigo-500/40 text-center pop-anim relative overflow-hidden">
+      <!-- Decorative Backdrop Light -->
+      <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl"></div>
+
+      <div class="inline-flex p-4 rounded-2xl bg-amber-500/10 text-amber-400 mb-4 border border-amber-500/20">
+        <i class="fa-solid fa-award text-4xl"></i>
+      </div>
+
+      <h2 class="font-heading text-2xl md:text-3xl font-extrabold text-white mb-1">Session Complete!</h2>
+      <p class="text-slate-400 text-sm mb-6">Great job practicing your college vocabulary!</p>
+
+      <!-- Score Box -->
+      <div class="bg-slate-900/80 border border-slate-700 rounded-2xl p-4 mb-6 grid grid-cols-2 gap-4">
+        <div class="border-r border-slate-800 pr-2">
+          <span class="text-xs text-slate-400 uppercase font-bold tracking-wider block mb-1">Final Score</span>
+          <span id="final-score" class="font-heading text-3xl font-bold text-amber-300">0</span>
+        </div>
+        <div class="pl-2">
+          <span class="text-xs text-slate-400 uppercase font-bold tracking-wider block mb-1">Accuracy</span>
+          <span id="final-accuracy" class="font-heading text-3xl font-bold text-emerald-400">0%</span>
+        </div>
+      </div>
+
+      <p id="final-feedback" class="text-sm font-semibold text-indigo-300 mb-6 italic">
+        "You're ready to conquer college!"
+      </p>
+
+      <button onclick="restartGame()" class="w-full bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold py-3.5 px-6 rounded-xl shadow-xl shadow-indigo-600/30 transition-all font-heading text-base flex items-center justify-center gap-2">
+        <i class="fa-solid fa-rotate-right"></i> Play Again
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. GAME DATA & STATE MANAGEMENT
+       ========================================================================== */
+    const questionsBank = [
+      {
+        word: "SYLLABUS",
+        clue: "An outline or summary of the subjects, topics, and rules for a college course given in the first week."
+      },
+      {
+        word: "DORMITORY",
+        clue: "A large campus building containing bedrooms for university students (often called a 'dorm')."
+      },
+      {
+        word: "LECTURE",
+        clue: "An educational talk or presentation given by a university professor to a large class."
+      },
+      {
+        word: "FRESHMAN",
+        clue: "A student who is in their very first year at a university or high school."
+      },
+      {
+        word: "MIDTERM",
+        clue: "An important exam held in the middle of an academic term or semester."
+      },
+      {
+        word: "CAMPUS",
+        clue: "The grounds and buildings of a university or college where classes and events take place."
+      },
+      {
+        word: "FACULTY",
+        clue: "A specific department of learning (e.g., Faculty of Arts), or the teaching staff of a college."
+      },
+      {
+        word: "LIBRARY",
+        clue: "A quiet building on campus where students go to borrow books, research, and study."
+      },
+      {
+        word: "TUITION",
+        clue: "The amount of money paid to a university or college for instruction and classes."
+      },
+      {
+        word: "CREDITS",
+        clue: "Units measuring the academic value or hours of a completed college course."
+      }
+    ];
+
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let mistakes = 0;
+    const MAX_MISTAKES = 3;
+    let guessedLetters = new Set();
+    let isRoundOver = false;
+    let correctRounds = 0;
+    let isMuted = false;
+
+    /* ==========================================================================
+       2. WEB AUDIO API SYNTHESIZER (NO EXTERNAL AUDIO FILES REQUIRED)
+       ========================================================================== */
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioContext();
+      }
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      const icon = document.getElementById("mute-icon");
+      if (isMuted) {
+        icon.className = "fa-solid fa-volume-xmark text-rose-400";
+      } else {
+        icon.className = "fa-solid fa-volume-high text-slate-300";
+      }
+    }
+
+    function playSound(type) {
+      if (isMuted) return;
+      initAudio();
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      const now = audioCtx.currentTime;
+
+      if (type === 'correct') {
+        // High upbeat chime
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.15); // A5
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      } 
+      else if (type === 'wrong') {
+        // Low buzzing error tone
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.linearRampToValueAtTime(110, now + 0.25);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      }
+      else if (type === 'win') {
+        // Victory fanfare sequence
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.2, now + idx * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.3);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.1);
+          osc.stop(now + idx * 0.1 + 0.3);
+        });
+      }
+      else if (type === 'applause') {
+        // Synthesized noise cheering effect
+        const bufferSize = audioCtx.sampleRate * 1.5;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1000, now);
+        filter.Q.setValueAtTime(1.5, now);
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.01, now);
+        gain.gain.linearRampToValueAtTime(0.25, now + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        noise.start(now);
+        noise.stop(now + 1.5);
+      }
+    }
+
+    /* ==========================================================================
+       3. DOM RENDERING & GAMEPLAY LOGIC
+       ========================================================================== */
+
+    function initKeyboard() {
+      const keyboardContainer = document.getElementById("keyboard");
+      keyboardContainer.innerHTML = "";
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+      for (let char of alphabet) {
+        const btn = document.createElement("button");
+        btn.innerText = char;
+        btn.id = `key-${char}`;
+        btn.className = "key-btn bg-slate-800 hover:bg-indigo-600 text-white font-bold p-2 md:p-3 rounded-lg text-sm md:text-base border border-slate-700/80 transition-all";
+        btn.onclick = () => handleGuess(char);
+        keyboardContainer.appendChild(btn);
+      }
+    }
+
+    function loadQuestion() {
+      isRoundOver = false;
+      guessedLetters.clear();
+      mistakes = 0;
+
+      const currentQ = questionsBank[currentQuestionIndex];
+
+      // Update UI Counters
+      document.getElementById("question-progress").innerText = `${currentQuestionIndex + 1} / ${questionsBank.length}`;
+      document.getElementById("score-display").innerText = score;
+      document.getElementById("clue-text").innerText = currentQ.clue;
+      document.getElementById("next-btn").disabled = true;
+      document.getElementById("giveup-btn").disabled = false;
+
+      // Reset Message Banner
+      const msgBanner = document.getElementById("message-banner");
+      msgBanner.className = "hidden rounded-xl p-3 text-center text-sm font-bold flex items-center justify-center gap-2";
+
+      // Reset Hangman Canvas Stages & Badge
+      updateMistakesUI();
+
+      // Reset Keyboard Buttons
+      initKeyboard();
+
+      // Render Word Blank Slots
+      renderWordSlots();
+    }
+
+    function renderWordSlots(revealAll = false) {
+      const wordContainer = document.getElementById("word-container");
+      wordContainer.innerHTML = "";
+      const currentWord = questionsBank[currentQuestionIndex].word;
+
+      for (let char of currentWord) {
+        const slot = document.createElement("div");
+        slot.className = "letter-slot w-9 h-11 md:w-12 md:h-14 flex items-center justify-center font-heading text-xl md:text-2xl font-bold rounded-t-lg bg-slate-800/60";
+
+        if (guessedLetters.has(char)) {
+          slot.innerText = char;
+          slot.classList.add("text-indigo-300", "pop-anim");
+        } else if (revealAll) {
+          slot.innerText = char;
+          slot.classList.add("text-rose-400", "bg-rose-950/30", "border-rose-500");
+        } else {
+          slot.innerText = "";
+        }
+
+        wordContainer.appendChild(slot);
+      }
+    }
+
+    function handleGuess(letter) {
+      if (isRoundOver || guessedLetters.has(letter)) return;
+
+      guessedLetters.add(letter);
+      const keyBtn = document.getElementById(`key-${letter}`);
+      if (keyBtn) keyBtn.disabled = true;
+
+      const currentWord = questionsBank[currentQuestionIndex].word;
+
+      if (currentWord.includes(letter)) {
+        // Correct Guess
+        playSound('correct');
+        if (keyBtn) {
+          keyBtn.classList.remove("bg-slate-800", "hover:bg-indigo-600");
+          keyBtn.classList.add("bg-emerald-600", "text-white");
+        }
+        renderWordSlots();
+        checkWinCondition();
+      } else {
+        // Wrong Guess
+        mistakes++;
+        playSound('wrong');
+        if (keyBtn) {
+          keyBtn.classList.remove("bg-slate-800", "hover:bg-indigo-600");
+          keyBtn.classList.add("bg-rose-900/60", "text-rose-300", "border-rose-700");
+        }
+
+        // Shake visual effect on scaffold
+        const clueBox = document.getElementById("clue-box");
+        clueBox.classList.remove("shake-anim");
+        void clueBox.offsetWidth; // trigger reflow
+        clueBox.classList.add("shake-anim");
+
+        updateMistakesUI();
+        checkLossCondition();
+      }
+    }
+
+    function updateMistakesUI() {
+      document.getElementById("mistake-badge").innerText = `${mistakes} / ${MAX_MISTAKES} Mistakes`;
+
+      // Update Heart icons
+      const livesContainer = document.getElementById("lives-container");
+      livesContainer.innerHTML = "";
+      for (let i = 0; i < MAX_MISTAKES; i++) {
+        const heart = document.createElement("i");
+        if (i < MAX_MISTAKES - mistakes) {
+          heart.className = "fa-solid fa-heart text-rose-500";
+        } else {
+          heart.className = "fa-regular fa-heart text-slate-600";
+        }
+        livesContainer.appendChild(heart);
+      }
+
+      // Toggle Hangman SVG stages
+      document.getElementById("hang-stage-1").classList.toggle("hidden", mistakes < 1);
+      document.getElementById("hang-stage-2").classList.toggle("hidden", mistakes < 2);
+      document.getElementById("hang-stage-3").classList.toggle("hidden", mistakes < 3);
+    }
+
+    function checkWinCondition() {
+      const currentWord = questionsBank[currentQuestionIndex].word;
+      const isComplete = currentWord.split("").every(char => guessedLetters.has(char));
+
+      if (isComplete) {
+        isRoundOver = true;
+        correctRounds++;
+        const roundPoints = 100 + ((MAX_MISTAKES - mistakes) * 25);
+        score += roundPoints;
+
+        document.getElementById("score-display").innerText = score;
+        playSound('win');
+
+        showBanner(true, `Splendid! You guessed "${currentWord}" (+${roundPoints} pts)`);
+        disableKeyboard();
+        document.getElementById("next-btn").disabled = false;
+        document.getElementById("giveup-btn").disabled = true;
+      }
+    }
+
+    function checkLossCondition() {
+      if (mistakes >= MAX_MISTAKES) {
+        isRoundOver = true;
+        const currentWord = questionsBank[currentQuestionIndex].word;
+
+        playSound('wrong');
+        renderWordSlots(true); // Reveal full answer in red
+        showBanner(false, `Out of tries! The correct answer was: "${currentWord}"`);
+        disableKeyboard();
+        document.getElementById("next-btn").disabled = false;
+        document.getElementById("giveup-btn").disabled = true;
+      }
+    }
+
+    function giveUpRound() {
+      if (isRoundOver) return;
+
+      isRoundOver = true;
+      mistakes = MAX_MISTAKES;
+      updateMistakesUI();
+
+      const currentWord = questionsBank[currentQuestionIndex].word;
+      renderWordSlots(true); // Reveal full answer in red
+      playSound('wrong');
+
+      showBanner(false, `Answer revealed: "${currentWord}"`);
+      disableKeyboard();
+      document.getElementById("next-btn").disabled = false;
+      document.getElementById("giveup-btn").disabled = true;
+    }
+
+    function showBanner(isSuccess, text) {
+      const banner = document.getElementById("message-banner");
+      const icon = document.getElementById("message-icon");
+      const messageText = document.getElementById("message-text");
+
+      banner.classList.remove("hidden", "bg-emerald-950/80", "text-emerald-300", "border-emerald-500/40", "bg-rose-950/80", "text-rose-300", "border-rose-500/40");
+
+      if (isSuccess) {
+        banner.classList.add("bg-emerald-950/80", "text-emerald-300", "border", "border-emerald-500/40", "flex");
+        icon.className = "fa-solid fa-circle-check text-emerald-400 text-lg";
+      } else {
+        banner.classList.add("bg-rose-950/80", "text-rose-300", "border", "border-rose-500/40", "flex");
+        icon.className = "fa-solid fa-triangle-exclamation text-rose-400 text-lg";
+      }
+
+      messageText.innerText = text;
+    }
+
+    function disableKeyboard() {
+      const buttons = document.querySelectorAll("#keyboard button");
+      buttons.forEach(btn => btn.disabled = true);
+    }
+
+    function nextQuestion() {
+      if (currentQuestionIndex < questionsBank.length - 1) {
+        currentQuestionIndex++;
+        loadQuestion();
+      } else {
+        endGameSession();
+      }
+    }
+
+    function endGameSession() {
+      playSound('applause');
+
+      const modal = document.getElementById("summary-modal");
+      document.getElementById("final-score").innerText = score;
+
+      const accuracy = Math.round((correctRounds / questionsBank.length) * 100);
+      document.getElementById("final-accuracy").innerText = `${accuracy}%`;
+
+      const feedback = document.getElementById("final-feedback");
+      if (accuracy >= 80) {
+        feedback.innerText = "🌟 Outstanding! You mastered freshman vocabulary like a pro!";
+      } else if (accuracy >= 50) {
+        feedback.innerText = "👍 Good job! Keep practicing to boost your campus vocabulary.";
+      } else {
+        feedback.innerText = "📚 Nice attempt! Review the campus terms and try again!";
+      }
+
+      modal.classList.remove("hidden");
+    }
+
+    function restartGame() {
+      currentQuestionIndex = 0;
+      score = 0;
+      correctRounds = 0;
+      document.getElementById("summary-modal").classList.add("hidden");
+      loadQuestion();
+    }
+
+    /* Keybinding Support for Physical Keyboards */
+    window.addEventListener("keydown", (e) => {
+      if (isRoundOver) return;
+      const key = e.key.toUpperCase();
+      if (/^[A-Z]$/.test(key)) {
+        handleGuess(key);
+      }
+    });
+
+    // Start game on page load
+    window.onload = () => {
+      loadQuestion();
+    };
+  </script>
+</body>
+</html>
