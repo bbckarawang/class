@@ -40,10 +40,10 @@
       <div id="settingsPanel" class="hidden bg-indigo-950/80 p-3 rounded-xl border border-indigo-700 text-xs mt-1">
         <label class="block text-indigo-200 font-semibold mb-1">Nomor WhatsApp Pengajar (Penerima):</label>
         <div class="flex gap-2">
-          <input type="text" id="teacherPhone" placeholder="Contoh: 628123456789" class="bg-indigo-900 text-white px-3 py-1.5 rounded-lg border border-indigo-600 focus:outline-none flex-1 text-xs">
+          <input type="text" id="teacherPhone" placeholder="Contoh: 6281388888070" class="bg-indigo-900 text-white px-3 py-1.5 rounded-lg border border-indigo-600 focus:outline-none flex-1 text-xs">
           <button onclick="savePhone()" class="bg-amber-400 text-slate-900 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-300">Simpan</button>
         </div>
-        <p class="text-[11px] text-indigo-300 mt-1">*Gunakan format kode negara tanpa '+', misal: <b>628123456789</b></p>
+        <p class="text-[11px] text-indigo-300 mt-1">*Gunakan format kode negara tanpa '+', misal: <b>6281388888070</b></p>
       </div>
 
       <!-- Checklist Bar -->
@@ -133,7 +133,7 @@
   </div>
 
   <script>
-    let teacherPhoneNumber = "628123456789"; // Default fallback
+    let teacherPhoneNumber = "6281388888070"; // Default fallback
 
     function toggleSettings() {
       const panel = document.getElementById('settingsPanel');
