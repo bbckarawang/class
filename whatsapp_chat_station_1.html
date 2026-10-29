@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Station 1 - WhatsApp Campus Chat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .chat-bg {
+      background-color: #efeae2;
+      background-image: radial-gradient(#d1d7db 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-800 min-h-screen flex items-center justify-center p-2 sm:p-4">
+
+  <!-- Main Container -->
+  <div class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-direction-col flex-col h-[92vh] max-h-[850px]">
+    
+    <!-- Header Setting & Instruction Bar -->
+    <div class="bg-indigo-900 text-white p-3 sm:p-4 border-b border-indigo-800 flex flex-col gap-2">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-2">
+          <span class="bg-amber-400 text-slate-900 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">Station 1</span>
+          <h1 class="text-sm sm:text-base font-bold text-slate-100">Campus News & Chat Reply</h1>
+        </div>
+        
+        <!-- Teacher Phone Number Settings -->
+        <button onclick="toggleSettings()" class="text-xs bg-indigo-800 hover:bg-indigo-700 text-indigo-200 px-3 py-1.5 rounded-lg border border-indigo-700 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-gear text-amber-400"></i>
+          <span id="settingLabel">6281388888070</span>
+        </button>
+      </div>
+
+      <!-- Settings Panel (Hidden by default) -->
+      <div id="settingsPanel" class="hidden bg-indigo-950/80 p-3 rounded-xl border border-indigo-700 text-xs mt-1">
+        <label class="block text-indigo-200 font-semibold mb-1">Nomor WhatsApp Pengajar (Penerima):</label>
+        <div class="flex gap-2">
+          <input type="text" id="teacherPhone" placeholder="Contoh: 628123456789" class="bg-indigo-900 text-white px-3 py-1.5 rounded-lg border border-indigo-600 focus:outline-none flex-1 text-xs">
+          <button onclick="savePhone()" class="bg-amber-400 text-slate-900 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-300">Simpan</button>
+        </div>
+        <p class="text-[11px] text-indigo-300 mt-1">*Gunakan format kode negara tanpa '+', misal: <b>628123456789</b></p>
+      </div>
+
+      <!-- Checklist Bar -->
+      <div class="bg-indigo-950/60 rounded-xl p-2.5 border border-indigo-800/80 text-xs">
+        <p class="text-amber-300 font-bold mb-1 flex items-center gap-1.5">
+          <i class="fa-solid fa-list-check"></i> Writing Challenge Checklist:
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-indigo-200 text-[11px]">
+          <div class="flex items-center gap-1.5"><i class="fa-regular fa-circle-check text-amber-400"></i> 3–4 Sentences</div>
+          <div class="flex items-center gap-1.5"><i class="fa-regular fa-circle-check text-amber-400"></i> Min. 2 Chat Slangs (BTW, FYI, ASAP, IMHO)</div>
+          <div class="flex items-center gap-1.5"><i class="fa-regular fa-circle-check text-amber-400"></i> Correct Sentence Structure</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WhatsApp Interface Header -->
+    <div class="bg-[#075e54] text-white p-3 flex items-center justify-between shadow-md">
+      <div class="flex items-center gap-3">
+        <div class="relative">
+          <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-[#075e54] font-bold text-lg border-2 border-white">
+            <i class="fa-solid fa-university"></i>
+          </div>
+          <span class="w-3 h-3 bg-emerald-400 border-2 border-[#075e54] rounded-full absolute bottom-0 right-0"></span>
+        </div>
+        <div>
+          <h2 class="font-bold text-sm leading-tight">Campus Student Board</h2>
+          <p class="text-[11px] text-emerald-200">Online • Official Support</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 text-slate-200 text-sm">
+        <i class="fa-solid fa-video cursor-pointer hover:text-white"></i>
+        <i class="fa-solid fa-phone cursor-pointer hover:text-white"></i>
+        <i class="fa-solid fa-ellipsis-vertical cursor-pointer hover:text-white"></i>
+      </div>
+    </div>
+
+    <!-- Chat Body Area -->
+    <div id="chatBody" class="flex-1 chat-bg p-4 overflow-y-auto space-y-3 flex flex-col">
+      
+      <!-- Date Divider -->
+      <div class="flex justify-center my-1">
+        <span class="bg-white/90 text-slate-500 text-[11px] font-semibold px-3 py-1 rounded-full shadow-sm">TODAY</span>
+      </div>
+
+      <!-- Incoming Message from Campus -->
+      <div class="max-w-[85%] sm:max-w-[75%] bg-white rounded-2xl rounded-tl-none p-3.5 shadow-sm text-slate-800 text-sm leading-relaxed relative border border-slate-100 self-start">
+        <p class="font-bold text-[11px] text-[#075e54] mb-1">Campus Coordinator</p>
+        <p id="campusMessage">
+          Hey Yola! <b>FYI</b>, our campus orientation starts tomorrow morning at 9 AM. <b>BTW</b>, don't forget to submit your ID form <b>ASAP</b>. <b>IMHO</b>, the student club fair is the best part of the week. Let me know if you need help finding the hall!
+        </p>
+        <div class="flex justify-between items-center mt-2 text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+          <span class="text-indigo-600 font-semibold cursor-pointer hover:underline" onclick="readAloud()"><i class="fa-solid fa-volume-high"></i> Read Aloud</span>
+          <span>09:00 AM</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- WhatsApp Input Bar -->
+    <div class="bg-[#f0f2f5] p-3 border-t border-slate-200 flex items-end gap-2">
+      <div class="flex items-center gap-2 text-slate-500 pb-2 px-1">
+        <i class="fa-regular fa-face-smile text-xl cursor-pointer hover:text-slate-700"></i>
+        <i class="fa-solid fa-paperclip text-lg cursor-pointer hover:text-slate-700"></i>
+      </div>
+
+      <div class="flex-1 bg-white rounded-2xl border border-slate-300 focus-within:border-emerald-500 px-3 py-2 shadow-inner">
+        <textarea id="replyInput" rows="2" placeholder="Type your 3-4 sentence reply using chat abbreviations..." class="w-full text-xs sm:text-sm bg-transparent border-none focus:outline-none resize-none text-slate-800"></textarea>
+      </div>
+
+      <button onclick="sendReply()" class="bg-[#00a884] hover:bg-[#008f70] text-white w-10 h-10 rounded-full flex items-center justify-center transition shadow-md flex-shrink-0">
+        <i class="fa-solid fa-paper-plane text-sm"></i>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Notification Popup Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
+      <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-3">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <h3 class="font-bold text-slate-800 text-lg mb-1">Pesan Terkirim!</h3>
+      <p id="modalDesc" class="text-xs text-slate-500 mb-4">Pesan balasan Yola telah masuk ke layar chat dan diteruskan ke WhatsApp pengajar.</p>
+      <button onclick="closeModal()" class="w-full bg-[#075e54] text-white py-2.5 rounded-xl font-bold text-sm hover:bg-[#05463e] transition">Lanjutkan</button>
+    </div>
+  </div>
+
+  <script>
+    let teacherPhoneNumber = "628123456789"; // Default fallback
+
+    function toggleSettings() {
+      const panel = document.getElementById('settingsPanel');
+      panel.classList.toggle('hidden');
+    }
+
+    function savePhone() {
+      const input = document.getElementById('teacherPhone').value.trim();
+      if(input) {
+        teacherPhoneNumber = input.replace(/[^0-9]/g, '');
+        alert('Nomor WhatsApp Pengajar berhasil disimpan: ' + teacherPhoneNumber);
+        document.getElementById('settingsPanel').classList.add('hidden');
+        document.getElementById('settingLabel').innerText = "WA: " + teacherPhoneNumber;
+      }
+    }
+
+    function readAloud() {
+      const text = "Hey Yola! FYI, our campus orientation starts tomorrow morning at 9 AM. BTW, don't forget to submit your ID form ASAP. IMHO, the student club fair is the best part of the week. Let me know if you need help finding the hall!";
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function sendReply() {
+      const replyText = document.getElementById('replyInput').value.trim();
+      if (!replyText) {
+        alert("Ketik balasan Yola terlebih dahulu!");
+        return;
+      }
+
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Append bubble to HTML Chat
+      const chatBody = document.getElementById('chatBody');
+      const sentBubble = document.createElement('div');
+      sentBubble.className = 'max-w-[85%] sm:max-w-[75%] bg-[#d9fdd3] rounded-2xl rounded-tr-none p-3.5 shadow-sm text-slate-800 text-sm leading-relaxed relative border border-emerald-100 self-end my-1';
+      sentBubble.innerHTML = `
+        <p class="font-bold text-[11px] text-emerald-800 mb-1">Yola</p>
+        <p>${replyText.replace(/\n/g, '<br>')}</p>
+        <div class="flex justify-end items-center gap-1 mt-1 text-[10px] text-slate-400">
+          <span>${timeStr}</span>
+          <i class="fa-solid fa-check-double text-sky-500 text-xs"></i>
+        </div>
+      `;
+      chatBody.appendChild(sentBubble);
+      chatBody.scrollTop = chatBody.scrollHeight;
+
+      // Clear input
+      document.getElementById('replyInput').value = '';
+
+      // Open Modal and redirect to WA
+      document.getElementById('modal').classList.remove('hidden');
+
+      // Trigger WhatsApp API redirect in new tab
+      const encodedText = encodeURIComponent(replyText);
+      const waUrl = `https://wa.me/${teacherPhoneNumber}?text=${encodedText}`;
+      setTimeout(() => {
+        window.open(waUrl, '_blank');
+      }, 1000);
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
