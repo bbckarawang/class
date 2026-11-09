@@ -199,12 +199,10 @@
                             <div id="qrcode" class="w-44 h-44 flex items-center justify-center"></div>
                         </div>
 
-                        <div class="w-full bg-slate-950/80 rounded-xl p-3 border border-slate-800 flex items-center justify-between text-xs">
-                            <span class="text-slate-400 font-mono truncate mr-2" id="host-url-display">https://...</span>
-                            <button onclick="copyAppUrl()" class="text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1 shrink-0">
-                                <i class="fa-regular fa-copy"></i> Copy
-                            </button>
-                        </div>
+                        <!-- Copy URL Button (Address text is hidden) -->
+                        <button onclick="copyAppUrl()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-indigo-400 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-2 transition">
+                            <i class="fa-regular fa-copy"></i> Copy Join Link
+                        </button>
                     </div>
 
                     <!-- Host Live 3D Dice Stage -->
@@ -340,6 +338,19 @@
 
     </main>
 
+    <!-- CUSTOM RE-NAME MODAL DIALOG -->
+    <div id="rename-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="glass-panel p-6 rounded-3xl max-w-sm w-full space-y-4 border border-indigo-500/30">
+            <h3 class="text-lg font-bold text-white">Rename Team</h3>
+            <p class="text-xs text-slate-400">Enter a new name for your team below:</p>
+            <input type="text" id="rename-input" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeRenameModal()" class="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white rounded-xl">Cancel</button>
+                <button onclick="saveRenameModal()" class="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg">Save Name</button>
+            </div>
+        </div>
+    </div>
+
     <footer class="text-center py-4 text-xs text-slate-500 border-t border-slate-900 glass-panel">
         Adult English Class • Firebase Realtime Gamification System
     </footer>
@@ -369,6 +380,7 @@
 
         let currentRole = 'host';
         let selectedGroupId = null;
+        let editingGroupId = null;
         let lastProcessedTimestamp = 0;
 
         window.onload = function() {
@@ -396,7 +408,6 @@
                 if (data && data.groups) {
                     appState = data;
                     
-                    // Handle Realtime Rolling Animation trigger on Host Screen
                     if (appState.rollingState && appState.rollingState.rollTimestamp > lastProcessedTimestamp) {
                         lastProcessedTimestamp = appState.rollingState.rollTimestamp;
                         trigger3DDiceRollAnimation(appState.rollingState.rollingGroupName, appState.rollingState.targetValue);
@@ -467,7 +478,6 @@
             const qrContainer = document.getElementById('qrcode');
             qrContainer.innerHTML = '';
             const currentUrl = window.location.href.split('?')[0] + '?role=client';
-            document.getElementById('host-url-display').innerText = currentUrl;
 
             new QRCode(qrContainer, {
                 text: currentUrl,
@@ -481,7 +491,7 @@
 
         function copyAppUrl() {
             const currentUrl = window.location.href.split('?')[0] + '?role=client';
-            navigator.clipboard.writeText(currentUrl).then(() => showToast("App URL copied!"));
+            navigator.clipboard.writeText(currentUrl).then(() => showToast("App URL copied to clipboard!"));
         }
 
         function addGroup() {
@@ -499,15 +509,27 @@
             saveStateToFirebase();
         }
 
-        function renameGroup(groupId, currentName) {
-            const newName = prompt("Enter new team name:", currentName);
-            if (newName && newName.trim() !== '') {
-                const group = appState.groups.find(g => g.id === groupId);
+        function openRenameModal(groupId, currentName) {
+            editingGroupId = groupId;
+            document.getElementById('rename-input').value = currentName;
+            document.getElementById('rename-modal').classList.remove('hidden');
+        }
+
+        function closeRenameModal() {
+            editingGroupId = null;
+            document.getElementById('rename-modal').classList.add('hidden');
+        }
+
+        function saveRenameModal() {
+            const newName = document.getElementById('rename-input').value;
+            if (newName && newName.trim() !== '' && editingGroupId) {
+                const group = appState.groups.find(g => g.id === editingGroupId);
                 if (group) {
                     group.name = newName.trim();
                     saveStateToFirebase();
                 }
             }
+            closeRenameModal();
         }
 
         function resetAllRolls() {
@@ -547,7 +569,7 @@
                         <div class="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg shadow-lg ${getRankBadgeClass(rankNum)}">#${rankNum}</div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <h4 class="text-base font-extrabold text-white cursor-pointer hover:text-indigo-400" onclick="renameGroup(${group.id}, '${group.name}')">${group.name} <i class="fa-solid fa-pen-to-square text-xs text-slate-500"></i></h4>
+                                <h4 class="text-base font-extrabold text-white cursor-pointer hover:text-indigo-400 flex items-center gap-1.5" onclick="openRenameModal(${group.id}, '${group.name}')">${group.name} <i class="fa-solid fa-pen-to-square text-xs text-slate-500"></i></h4>
                                 ${isTieWinner ? `<span class="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">Tie Winner (Faster Roll)</span>` : ''}
                             </div>
                             <p class="text-xs text-slate-400">Position: ${getOrdinalSuffix(rankNum)} Turn</p>
@@ -567,7 +589,7 @@
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 rounded-xl bg-slate-900 text-slate-600 flex items-center justify-center font-bold text-lg border border-slate-800">?</div>
                         <div>
-                            <h4 class="text-base font-extrabold text-slate-300 cursor-pointer hover:text-indigo-400" onclick="renameGroup(${group.id}, '${group.name}')">${group.name} <i class="fa-solid fa-pen-to-square text-xs text-slate-500"></i></h4>
+                            <h4 class="text-base font-extrabold text-slate-300 cursor-pointer hover:text-indigo-400 flex items-center gap-1.5" onclick="openRenameModal(${group.id}, '${group.name}')">${group.name} <i class="fa-solid fa-pen-to-square text-xs text-slate-500"></i></h4>
                             <p class="text-xs text-slate-500">Has not rolled yet</p>
                         </div>
                     </div>
@@ -645,12 +667,10 @@
             const randomValue = Math.floor(Math.random() * 6) + 1;
             const now = Date.now();
 
-            // Update group status
             group.rolled = true;
             group.diceValue = randomValue;
             group.timestamp = now;
 
-            // Broadcast rolling event trigger to all connected devices via Firebase
             appState.rollingState = {
                 isRolling: true,
                 rollingGroupId: groupId,
