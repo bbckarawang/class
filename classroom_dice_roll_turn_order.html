@@ -16,12 +16,11 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Firebase SDK (Modular Script Tag Version) -->
+    <!-- Firebase SDK (Modular Version) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyAh-sJpUfzqNcGyqhaz5adDtgjP4vTbzl4",
             authDomain: "englishclass-82a10.firebaseapp.com",
@@ -32,7 +31,6 @@
             appId: "1:980625786557:web:e2a498a7d65a86bc7359d4"
         };
 
-        // Initialize Firebase & Realtime Database
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         window.firebaseDB = db;
@@ -126,14 +124,6 @@
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-
-        .glass-panel-interactive {
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .glass-panel-interactive:hover {
-            border-color: rgba(99, 102, 241, 0.4);
-            transform: translateY(-2px);
-        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
@@ -155,7 +145,7 @@
         <!-- Role Toggle Pills -->
         <div class="flex items-center bg-slate-950/80 p-1.5 rounded-full border border-slate-800">
             <button id="btn-role-host" onclick="switchRole('host')" 
-                    class="px-5 py-2 text-xs font-bold rounded-full transition-all duration-300 bg-indigo-600 text-white shadow-md shadow-indigo-600/30 flex items-center gap-2">
+                    class="px-5 py-2 text-xs font-bold rounded-full transition-all duration-300 bg-indigo-600 text-white shadow-md flex items-center gap-2">
                 <i class="fa-solid fa-desktop"></i> Host (Projector View)
             </button>
             <button id="btn-role-client" onclick="switchRole('client')" 
@@ -174,7 +164,7 @@
             <div class="glass-panel p-4 rounded-2xl flex flex-wrap justify-between items-center gap-4">
                 <div class="flex items-center gap-3">
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2"></span> Firebase Live Sync Active
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2"></span> Firebase Sync Connected
                     </span>
                     <span id="host-group-count-badge" class="text-xs text-slate-400 font-semibold">
                         Total Groups: 3
@@ -217,9 +207,10 @@
                         </div>
                     </div>
 
+                    <!-- Host Live 3D Dice Stage -->
                     <div class="glass-panel p-6 rounded-3xl text-center flex flex-col items-center justify-center min-h-[220px] relative">
                         <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                            Live Projector Dice Stage
+                            LIVE PROJECTOR DICE STAGE
                         </span>
                         
                         <div class="py-3">
@@ -235,7 +226,7 @@
                             </div>
                         </div>
 
-                        <p id="host-dice-stage-text" class="text-xs font-semibold text-indigo-300 mt-2">
+                        <p id="host-dice-stage-text" class="text-xs font-bold text-indigo-300 mt-2">
                             Waiting for a Captain to roll...
                         </p>
                     </div>
@@ -366,17 +357,23 @@
                 { id: 1, name: 'Group 1', rolled: false, diceValue: null, timestamp: null },
                 { id: 2, name: 'Group 2', rolled: false, diceValue: null, timestamp: null },
                 { id: 3, name: 'Group 3', rolled: false, diceValue: null, timestamp: null }
-            ]
+            ],
+            rollingState: {
+                isRolling: false,
+                rollingGroupId: null,
+                rollingGroupName: '',
+                targetValue: 1,
+                rollTimestamp: 0
+            }
         };
 
         let currentRole = 'host';
         let selectedGroupId = null;
-        let isRolling = false;
+        let lastProcessedTimestamp = 0;
 
         window.onload = function() {
             setupQRCode();
 
-            // Check Firebase sync listener
             const checkFirebase = setInterval(() => {
                 if (window.firebaseDB && window.dbRef && window.dbOnValue) {
                     clearInterval(checkFirebase);
@@ -398,6 +395,13 @@
                 const data = snapshot.val();
                 if (data && data.groups) {
                     appState = data;
+                    
+                    // Handle Realtime Rolling Animation trigger on Host Screen
+                    if (appState.rollingState && appState.rollingState.rollTimestamp > lastProcessedTimestamp) {
+                        lastProcessedTimestamp = appState.rollingState.rollTimestamp;
+                        trigger3DDiceRollAnimation(appState.rollingState.rollingGroupName, appState.rollingState.targetValue);
+                    }
+
                     updateUI();
                 } else {
                     saveStateToFirebase();
@@ -410,6 +414,31 @@
                 const roomRef = window.dbRef(window.firebaseDB, 'english_class_room');
                 window.dbSet(roomRef, appState);
             }
+        }
+
+        function trigger3DDiceRollAnimation(groupName, finalValue) {
+            playRollSound();
+
+            const hostCube = document.getElementById('host-dice-cube');
+            const clientCube = document.getElementById('client-dice-cube');
+            const stageText = document.getElementById('host-dice-stage-text');
+
+            if (stageText) stageText.innerText = `🎲 ${groupName} is rolling...`;
+            if (hostCube) hostCube.classList.add('is-rolling');
+            if (clientCube) clientCube.classList.add('is-rolling');
+
+            setTimeout(() => {
+                if (hostCube) {
+                    hostCube.classList.remove('is-rolling');
+                    hostCube.className = `dice-cube show-${finalValue}`;
+                }
+                if (clientCube) {
+                    clientCube.classList.remove('is-rolling');
+                    clientCube.className = `dice-cube show-${finalValue}`;
+                }
+                if (stageText) stageText.innerText = `✨ ${groupName} rolled a ${finalValue}!`;
+                playSuccessSound();
+            }, 1200);
         }
 
         function switchRole(role) {
@@ -483,6 +512,7 @@
 
         function resetAllRolls() {
             appState.groups.forEach(g => { g.rolled = false; g.diceValue = null; g.timestamp = null; });
+            appState.rollingState = { isRolling: false, rollingGroupId: null, rollingGroupName: '', targetValue: 1, rollTimestamp: Date.now() };
             saveStateToFirebase();
             showToast("All dice rolls reset!");
         }
@@ -604,43 +634,32 @@
         }
 
         function rollDiceClient() {
-            if (!selectedGroupId || isRolling) return;
+            if (!selectedGroupId) return;
             performRollLogic(selectedGroupId);
         }
 
         function performRollLogic(groupId) {
-            isRolling = true;
-            playRollSound();
-
             const group = appState.groups.find(g => g.id === groupId);
-            const clientCube = document.getElementById('client-dice-cube');
-            const hostCube = document.getElementById('host-dice-cube');
+            if (!group) return;
 
-            if (clientCube) clientCube.classList.add('is-rolling');
-            if (hostCube) hostCube.classList.add('is-rolling');
+            const randomValue = Math.floor(Math.random() * 6) + 1;
+            const now = Date.now();
 
-            const resultValue = Math.floor(Math.random() * 6) + 1;
+            // Update group status
+            group.rolled = true;
+            group.diceValue = randomValue;
+            group.timestamp = now;
 
-            setTimeout(() => {
-                if (clientCube) {
-                    clientCube.classList.remove('is-rolling');
-                    clientCube.className = `dice-cube show-${resultValue}`;
-                }
-                if (hostCube) {
-                    hostCube.classList.remove('is-rolling');
-                    hostCube.className = `dice-cube show-${resultValue}`;
-                }
+            // Broadcast rolling event trigger to all connected devices via Firebase
+            appState.rollingState = {
+                isRolling: true,
+                rollingGroupId: groupId,
+                rollingGroupName: group.name,
+                targetValue: randomValue,
+                rollTimestamp: now
+            };
 
-                if (group) {
-                    group.rolled = true;
-                    group.diceValue = resultValue;
-                    group.timestamp = Date.now();
-                }
-
-                isRolling = false;
-                saveStateToFirebase();
-                playSuccessSound();
-            }, 1200);
+            saveStateToFirebase();
         }
 
         function updateClientRollUI(group) {
