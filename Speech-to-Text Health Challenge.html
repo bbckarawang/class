@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basic English Health Speaking Challenge</title>
+    <title>Firebase English Health Speaking Challenge</title>
+    <!-- Memuat SDK Firebase versi kompatibel dengan browser biasa -->
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
+    
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -49,7 +53,7 @@
             border-left: 5px solid #3498db;
             padding: 15px;
             border-radius: 4px;
-            margin-bottom: 0;
+            margin-bottom: 10px;
         }
         .prompt-box h4 {
             margin: 0 0 8px 0;
@@ -110,6 +114,20 @@
             display: flex;
             align-items: center;
         }
+        .clear-all-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            display: block;
+            margin: 10px auto 0 auto;
+        }
+        .clear-all-btn:hover {
+            background-color: #c0392b;
+        }
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.03); }
@@ -121,22 +139,37 @@
 
 <div class="container">
     <h1>🎙️ Health Speaking Challenge</h1>
-    <h3>English Basic Level - Speech-to-Text Dashboard</h3>
+    <h3>English Basic Level - Firebase Live Dashboard</h3>
 
-    <!-- Bagian yang Dikunci di Atas (Sticky) -->
     <div class="sticky-header">
         <div class="prompt-box">
             <h4>💡 Sentence Guides (Alat Bantu Kalimat):</h4>
             <p>• <strong>Illness:</strong> "I have a terrible [headache / stomachache / toothache / cough / fever]."</p>
             <p>• <strong>Advice:</strong> "You should [see a doctor / take medicine / rest at home]."</p>
         </div>
+        <!-- Tombol Khusus Guru untuk Reset Semua Data -->
+        <button class="clear-all-btn" onclick="clearAllData()">🔄 Reset All Text</button>
     </div>
 
-    <!-- Daftar Nama Siswa -->
     <div id="students-container"></div>
 </div>
 
 <script>
+    // Konfigurasi asli Firebase milik Anda yang sudah dimasukkan
+    const firebaseConfig = {
+        apiKey: "AIzaSyAh-sJpUfzqNcGyqhaz5adDtgjP4vTbzl4",
+        authDomain: "englishclass-82a10.firebaseapp.com",
+        databaseURL: "https://englishclass-82a10-default-rtdb.firebaseio.com",
+        projectId: "englishclass-82a10",
+        storageBucket: "englishclass-82a10.firebasestorage.app",
+        messagingSenderId: "980625786557",
+        appId: "1:980625786557:web:2258de568232c8067359d4"
+    };
+
+    // Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
     // Daftar nama siswa
     const students = [
         "Ms. Ally", "Ms. Angel", "Ms. Flo", "Ms. JC", 
@@ -148,24 +181,57 @@
     let recognition;
     let activeIndex = null;
 
-    // Inisialisasi Fitur Speech Recognition
+    // Render baris nama siswa ke halaman
+    students.forEach((name, index) => {
+        // Buat ID unik tanpa spasi dan titik untuk Firebase
+        const dbId = name.replace(/[\s.]/g, ''); 
+        
+        const row = document.createElement('div');
+        row.className = 'student-row';
+        row.innerHTML = `
+            <div class="student-name">${name}</div>
+            <button class="mic-btn" id="btn-${index}" onclick="toggleRecord(${index}, '${dbId}')">🎙️ Speak</button>
+            <div class="result-box" id="output-${index}">Click 'Speak' and start talking...</div>
+        `;
+        container.appendChild(row);
+
+        // Menggunakan folder khusus 'healthSpeaking' agar aman dan tidak bentrok dengan aplikasi lama Anda
+        database.ref('healthSpeaking/' + dbId).on('value', (snapshot) => {
+            const val = snapshot.val();
+            const outputBox = document.getElementById(`output-${index}`);
+            if (val && val.text) {
+                outputBox.textContent = val.text;
+            } else {
+                outputBox.textContent = "Click 'Speak' and start talking...";
+            }
+        });
+    });
+
+    // Inisialisasi Fitur Speech Recognition bawaan browser
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = 'en-US'; // Bahasa Inggris
+        recognition.lang = 'en-US'; // Input otomatis dikunci ke Bahasa Inggris
 
         recognition.onstart = function() {
             const btn = document.getElementById(`btn-${activeIndex}`);
-            btn.textContent = "🛑 Listening...";
-            btn.classList.add('recording');
+            if(btn) {
+                btn.textContent = "🛑 Listening...";
+                btn.classList.add('recording');
+            }
         };
 
         recognition.onresult = function(event) {
-            const resultText = event.results[0][0].transcript;
-            const outputBox = document.getElementById(`output-${activeIndex}`);
-            outputBox.textContent = resultText;
+            const resultText = event.results.transcript;
+            const currentStudentName = students[activeIndex];
+            const currentDbId = currentStudentName.replace(/[\s.]/g, '');
+
+            // Simpan teks ucapan ke Firebase online
+            database.ref('healthSpeaking/' + currentDbId).set({
+                text: resultText
+            });
         };
 
         recognition.onerror = function(event) {
@@ -177,7 +243,7 @@
             resetBtn(activeIndex);
         };
     } else {
-        alert("Browser Anda tidak mendukung Speech Recognition. Mohon gunakan Google Chrome.");
+        alert("Browser tidak mendukung Speech Recognition. Sangat direkomendasikan menggunakan Google Chrome.");
     }
 
     function resetBtn(index) {
@@ -189,7 +255,7 @@
         activeIndex = null;
     }
 
-    function toggleRecord(index) {
+    function toggleRecord(index, dbId) {
         if (activeIndex === index) {
             recognition.stop();
         } else {
@@ -197,22 +263,19 @@
                 recognition.stop();
             }
             activeIndex = index;
-            document.getElementById(`output-${index}`).textContent = "Listening to your voice...";
+            database.ref('healthSpeaking/' + dbId).set({
+                text: "Listening to your voice..."
+            });
             recognition.start();
         }
     }
 
-    // Render baris nama siswa
-    students.forEach((name, index) => {
-        const row = document.createElement('div');
-        row.className = 'student-row';
-        row.innerHTML = `
-            <div class="student-name">${name}</div>
-            <button class="mic-btn" id="btn-${index}" onclick="toggleRecord(${index})">🎙️ Speak</button>
-            <div class="result-box" id="output-${index}">Click 'Speak' and start talking...</div>
-        `;
-        container.appendChild(row);
-    });
+    // Fungsi Guru untuk mereset seluruh teks di layar proyektor
+    function clearAllData() {
+        if (confirm("Are you sure you want to reset all students' text?")) {
+            database.ref('healthSpeaking').remove();
+        }
+    }
 </script>
 
 </body>
