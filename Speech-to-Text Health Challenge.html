@@ -32,12 +32,24 @@
             margin-bottom: 25px;
             font-weight: 400;
         }
+        /* Membuat kotak panduan tetap melayang di atas saat di-scroll */
+        .sticky-header {
+            position: -webkit-sticky;
+            position: sticky;
+            top: 0;
+            background-color: #fff;
+            padding-top: 10px;
+            padding-bottom: 15px;
+            z-index: 1000;
+            border-bottom: 2px solid #eceff1;
+            margin-bottom: 20px;
+        }
         .prompt-box {
             background-color: #e8f4f8;
             border-left: 5px solid #3498db;
             padding: 15px;
             border-radius: 4px;
-            margin-bottom: 30px;
+            margin-bottom: 0;
         }
         .prompt-box h4 {
             margin: 0 0 8px 0;
@@ -77,6 +89,7 @@
             align-items: center;
             gap: 8px;
             transition: background-color 0.2s;
+            white-space: nowrap;
         }
         .mic-btn:hover {
             background-color: #27ae60;
@@ -110,18 +123,21 @@
     <h1>🎙️ Health Speaking Challenge</h1>
     <h3>English Basic Level - Speech-to-Text Dashboard</h3>
 
-    <!-- Contekan Kalimat untuk Siswa -->
-    <div class="prompt-box">
-        <h4>💡 Sentence Guides (Alat Bantu Kalimat):</h4>
-        <p>• <strong>Illness:</strong> "I have a terrible [headache / stomachache / toothache / cough / fever]."</p>
-        <p>• <strong>Advice:</strong> "You should [see a doctor / take medicine / rest at home]."</p>
+    <!-- Bagian yang Dikunci di Atas (Sticky) -->
+    <div class="sticky-header">
+        <div class="prompt-box">
+            <h4>💡 Sentence Guides (Alat Bantu Kalimat):</h4>
+            <p>• <strong>Illness:</strong> "I have a terrible [headache / stomachache / toothache / cough / fever]."</p>
+            <p>• <strong>Advice:</strong> "You should [see a doctor / take medicine / rest at home]."</p>
+        </div>
     </div>
 
+    <!-- Daftar Nama Siswa -->
     <div id="students-container"></div>
 </div>
 
 <script>
-    // Daftar nama siswa sesuai request
+    // Daftar nama siswa
     const students = [
         "Ms. Ally", "Ms. Angel", "Ms. Flo", "Ms. JC", 
         "Ms. Key", "Ms. Queen", "Ms. When", "Ms. Valley", 
@@ -132,13 +148,13 @@
     let recognition;
     let activeIndex = null;
 
-    // Inisialisasi Fitur Speech Recognition bawaan Browser
+    // Inisialisasi Fitur Speech Recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = 'en-US'; // Mengunci input agar wajib Bahasa Inggris
+        recognition.lang = 'en-US'; // Bahasa Inggris
 
         recognition.onstart = function() {
             const btn = document.getElementById(`btn-${activeIndex}`);
@@ -161,7 +177,7 @@
             resetBtn(activeIndex);
         };
     } else {
-        alert("Browser Anda tidak mendukung Speech Recognition. Mohon gunakan Google Chrome di Laptop.");
+        alert("Browser Anda tidak mendukung Speech Recognition. Mohon gunakan Google Chrome.");
     }
 
     function resetBtn(index) {
@@ -186,7 +202,7 @@
         }
     }
 
-    // Render baris nama siswa ke dalam HTML
+    // Render baris nama siswa
     students.forEach((name, index) => {
         const row = document.createElement('div');
         row.className = 'student-row';
