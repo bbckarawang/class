@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic English Health Speaking Challenge</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        h3 {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-weight: 400;
+        }
+        .prompt-box {
+            background-color: #e8f4f8;
+            border-left: 5px solid #3498db;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+        }
+        .prompt-box h4 {
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+        }
+        .prompt-box p {
+            margin: 5px 0;
+            font-family: monospace;
+            font-size: 1.1em;
+            color: #34495e;
+        }
+        .student-row {
+            display: flex;
+            align-items: center;
+            padding: 15px 10px;
+            border-bottom: 1px solid #eceff1;
+            gap: 15px;
+        }
+        .student-row:last-child {
+            border-bottom: none;
+        }
+        .student-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            width: 130px;
+            color: #2c3e50;
+        }
+        .mic-btn {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+        .mic-btn:hover {
+            background-color: #27ae60;
+        }
+        .mic-btn.recording {
+            background-color: #e74c3c;
+            animation: pulse 1.5s infinite;
+        }
+        .result-box {
+            flex-grow: 1;
+            min-height: 40px;
+            background-color: #fafafa;
+            border: 1px dashed #b0bec5;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 1.1em;
+            color: #16a085;
+            display: flex;
+            align-items: center;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎙️ Health Speaking Challenge</h1>
+    <h3>English Basic Level - Speech-to-Text Dashboard</h3>
+
+    <!-- Contekan Kalimat untuk Siswa -->
+    <div class="prompt-box">
+        <h4>💡 Sentence Guides (Alat Bantu Kalimat):</h4>
+        <p>• <strong>Illness:</strong> "I have a terrible [headache / stomachache / toothache / cough / fever]."</p>
+        <p>• <strong>Advice:</strong> "You should [see a doctor / take medicine / rest at home]."</p>
+    </div>
+
+    <div id="students-container"></div>
+</div>
+
+<script>
+    // Daftar nama siswa sesuai request
+    const students = [
+        "Ms. Ally", "Ms. Angel", "Ms. Flo", "Ms. JC", 
+        "Ms. Key", "Ms. Queen", "Ms. When", "Ms. Valley", 
+        "Ms. Zara", "Mr. H", "Mr. Phone"
+    ];
+
+    const container = document.getElementById('students-container');
+    let recognition;
+    let activeIndex = null;
+
+    // Inisialisasi Fitur Speech Recognition bawaan Browser
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US'; // Mengunci input agar wajib Bahasa Inggris
+
+        recognition.onstart = function() {
+            const btn = document.getElementById(`btn-${activeIndex}`);
+            btn.textContent = "🛑 Listening...";
+            btn.classList.add('recording');
+        };
+
+        recognition.onresult = function(event) {
+            const resultText = event.results[0][0].transcript;
+            const outputBox = document.getElementById(`output-${activeIndex}`);
+            outputBox.textContent = resultText;
+        };
+
+        recognition.onerror = function(event) {
+            console.error(event.error);
+            resetBtn(activeIndex);
+        };
+
+        recognition.onend = function() {
+            resetBtn(activeIndex);
+        };
+    } else {
+        alert("Browser Anda tidak mendukung Speech Recognition. Mohon gunakan Google Chrome di Laptop.");
+    }
+
+    function resetBtn(index) {
+        const btn = document.getElementById(`btn-${index}`);
+        if(btn) {
+            btn.textContent = "🎙️ Speak";
+            btn.classList.remove('recording');
+        }
+        activeIndex = null;
+    }
+
+    function toggleRecord(index) {
+        if (activeIndex === index) {
+            recognition.stop();
+        } else {
+            if (activeIndex !== null) {
+                recognition.stop();
+            }
+            activeIndex = index;
+            document.getElementById(`output-${index}`).textContent = "Listening to your voice...";
+            recognition.start();
+        }
+    }
+
+    // Render baris nama siswa ke dalam HTML
+    students.forEach((name, index) => {
+        const row = document.createElement('div');
+        row.className = 'student-row';
+        row.innerHTML = `
+            <div class="student-name">${name}</div>
+            <button class="mic-btn" id="btn-${index}" onclick="toggleRecord(${index})">🎙️ Speak</button>
+            <div class="result-box" id="output-${index}">Click 'Speak' and start talking...</div>
+        `;
+        container.appendChild(row);
+    });
+</script>
+
+</body>
+</html>
