@@ -1,20 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Scanner Voucher BBC Karawang</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; padding: 15px; margin: 0; }
-    .card { max-width: 420px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    h2 { color: #b71c1c; margin-top: 0; }
-    #reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 250px; }
-    #hasil { margin-top: 15px; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 15px; display: none; }
+    * { box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; 
+      background: #f4f4f9; 
+      margin: 0; 
+      padding: 16px; 
+      display: flex;
+      justify-content: center;
+    }
+    .card { 
+      width: 100%; 
+      max-width: 440px; 
+      background: white; 
+      padding: 20px; 
+      border-radius: 16px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+      text-align: center;
+    }
+    h2 { color: #b71c1c; margin: 0 0 16px 0; font-size: 22px; }
+    #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #111; min-height: 260px; }
+    #hasil { margin-top: 16px; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 16px; display: none; line-height: 1.4; }
     .sukses { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .gagal { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .manual-box { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
-    input { padding: 10px; width: 65%; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; text-transform: uppercase; }
-    button { padding: 10px 15px; font-size: 14px; background: #b71c1c; color: white; border: none; border-radius: 6px; cursor: pointer; }
-    #btnScanUlang { width: 100%; margin-top: 12px; display: none; padding: 12px; font-size: 15px; }
+    .loading { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .manual-box { margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee; display: flex; gap: 8px; }
+    input { 
+      flex: 1; 
+      padding: 12px; 
+      border: 1px solid #ccc; 
+      border-radius: 8px; 
+      font-size: 16px; 
+      text-transform: uppercase; 
+    }
+    button { 
+      padding: 12px 16px; 
+      font-size: 16px; 
+      font-weight: bold;
+      background: #b71c1c; 
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+    }
+    button:active { opacity: 0.85; }
+    #btnScanUlang { width: 100%; margin-top: 14px; display: none; padding: 14px; }
   </style>
 </head>
 <body>
@@ -25,27 +61,38 @@
     <button id="btnScanUlang" onclick="mulaiKamera()">Scan Voucher Berikutnya</button>
 
     <div class="manual-box">
-      <input type="text" id="inputManual" placeholder="Contoh: BBC-0001-93KH">
-      <button onclick="cekManual()">Cek Kode</button>
+      <input type="text" id="inputManual" placeholder="BBC-0001-93KH">
+      <button onclick="cekManual()">Cek</button>
     </div>
   </div>
 
   <script>
+    // GANTI URL DI BAWAH INI DENGAN URL WEB APP APPS SCRIPT ANDA (/exec)
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCb7H3CBN_n7Ed_4xtJw_K4iT3d-OcE_rlb3q0erSqeKEOBXmmXeWegwVP7Htybs0/exec";
+
     const html5QrCode = new Html5Qrcode("reader");
 
     function prosesKode(kode) {
       const boxHasil = document.getElementById('hasil');
       boxHasil.style.display = 'block';
-      boxHasil.className = '';
-      boxHasil.style.background = '#fff3cd';
-      boxHasil.style.color = '#856404';
+      boxHasil.className = 'loading';
       boxHasil.innerText = 'Memeriksa kode ' + kode + '...';
 
-      google.script.run.withSuccessHandler(function(res) {
+      fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ kode: kode })
+      })
+      .then(response => response.json())
+      .then(res => {
         boxHasil.innerText = res.pesan;
         boxHasil.className = res.valid ? 'sukses' : 'gagal';
         document.getElementById('btnScanUlang').style.display = 'block';
-      }).cekDanPakaiVoucher(kode);
+      })
+      .catch(err => {
+        boxHasil.innerText = 'Gagal terhubung ke server spreadsheet. Periksa koneksi internet.';
+        boxHasil.className = 'gagal';
+        document.getElementById('btnScanUlang').style.display = 'block';
+      });
     }
 
     function mulaiKamera() {
@@ -53,17 +100,17 @@
       document.getElementById('btnScanUlang').style.display = 'none';
       
       html5QrCode.start(
-        { facingMode: "environment" }, // Memaksa pakai kamera belakang HP
+        { facingMode: "environment" },
         { fps: 10, qrbox: { width: 220, height: 220 } },
         (decodedText) => {
           html5QrCode.stop().then(() => {
             prosesKode(decodedText);
           });
         },
-        (errorMessage) => { /* abaikan error frame kosong */ }
+        (errorMessage) => { }
       ).catch(err => {
         document.getElementById('reader').innerHTML = 
-          "<p style='color:white; padding:20px;'>Kamera tidak terdeteksi di perangkat ini. Silakan buka link ini di HP atau ketik kode di bawah.</p>";
+          "<p style='color:white; padding:20px; margin:0;'>Kamera tidak aktif. Pastikan izin kamera diizinkan atau ketik kode di bawah.</p>";
       });
     }
 
