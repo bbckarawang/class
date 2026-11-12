@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; padding: 15px; margin: 0; }
+    .card { max-width: 420px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    h2 { color: #b71c1c; margin-top: 0; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 250px; }
+    #hasil { margin-top: 15px; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 15px; display: none; }
+    .sukses { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .gagal { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .manual-box { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
+    input { padding: 10px; width: 65%; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; text-transform: uppercase; }
+    button { padding: 10px 15px; font-size: 14px; background: #b71c1c; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    #btnScanUlang { width: 100%; margin-top: 12px; display: none; padding: 12px; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Scanner Voucher BBC</h2>
+    <div id="reader"></div>
+    <div id="hasil"></div>
+    <button id="btnScanUlang" onclick="mulaiKamera()">Scan Voucher Berikutnya</button>
+
+    <div class="manual-box">
+      <input type="text" id="inputManual" placeholder="Contoh: BBC-0001-93KH">
+      <button onclick="cekManual()">Cek Kode</button>
+    </div>
+  </div>
+
+  <script>
+    const html5QrCode = new Html5Qrcode("reader");
+
+    function prosesKode(kode) {
+      const boxHasil = document.getElementById('hasil');
+      boxHasil.style.display = 'block';
+      boxHasil.className = '';
+      boxHasil.style.background = '#fff3cd';
+      boxHasil.style.color = '#856404';
+      boxHasil.innerText = 'Memeriksa kode ' + kode + '...';
+
+      google.script.run.withSuccessHandler(function(res) {
+        boxHasil.innerText = res.pesan;
+        boxHasil.className = res.valid ? 'sukses' : 'gagal';
+        document.getElementById('btnScanUlang').style.display = 'block';
+      }).cekDanPakaiVoucher(kode);
+    }
+
+    function mulaiKamera() {
+      document.getElementById('hasil').style.display = 'none';
+      document.getElementById('btnScanUlang').style.display = 'none';
+      
+      html5QrCode.start(
+        { facingMode: "environment" }, // Memaksa pakai kamera belakang HP
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          html5QrCode.stop().then(() => {
+            prosesKode(decodedText);
+          });
+        },
+        (errorMessage) => { /* abaikan error frame kosong */ }
+      ).catch(err => {
+        document.getElementById('reader').innerHTML = 
+          "<p style='color:white; padding:20px;'>Kamera tidak terdeteksi di perangkat ini. Silakan buka link ini di HP atau ketik kode di bawah.</p>";
+      });
+    }
+
+    function cekManual() {
+      const kode = document.getElementById('inputManual').value.trim();
+      if (kode) prosesKode(kode);
+    }
+
+    mulaiKamera();
+  </script>
+</body>
+</html>
