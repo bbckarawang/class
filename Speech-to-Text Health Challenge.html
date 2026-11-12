@@ -74,12 +74,19 @@
         .student-row {
             display: flex;
             align-items: center;
-            padding: 15px 10px;
+            padding: 15px 12px;
             border-bottom: 1px solid #eceff1;
             gap: 15px;
+            border-radius: 8px;
+            transition: background-color 0.3s ease, border-left 0.3s ease;
         }
         .student-row:last-child {
             border-bottom: none;
+        }
+        /* Warna baris saat siswa sudah menjawab */
+        .student-row.answered {
+            background-color: #eafaf1;
+            border-left: 5px solid #2ecc71;
         }
         .student-name {
             font-weight: bold;
@@ -108,17 +115,32 @@
             background-color: #e74c3c;
             animation: pulse 1.5s infinite;
         }
+        /* Warna tombol saat siswa sudah menjawab */
+        .mic-btn.answered {
+            background-color: #3498db;
+        }
+        .mic-btn.answered:hover {
+            background-color: #2980b9;
+        }
         .result-box {
             flex-grow: 1;
             min-height: 40px;
             background-color: #fafafa;
             border: 1px dashed #b0bec5;
             border-radius: 6px;
-            padding: 10px;
+            padding: 10px 14px;
             font-size: 1.1em;
-            color: #16a085;
+            color: #7f8c8d;
             display: flex;
             align-items: center;
+            transition: all 0.3s ease;
+        }
+        /* Warna kotak teks saat siswa sudah menjawab */
+        .result-box.answered {
+            background-color: #d4efdf;
+            border: 2px solid #27ae60;
+            color: #145a32;
+            font-weight: 600;
         }
         .clear-all-btn {
             background-color: #e74c3c;
@@ -150,9 +172,9 @@
 
     <div class="sticky-header">
         <div class="prompt-box">
-            <h4>💡 Sentence Guides (Alat Bantu Kalimat):</h4>
-            <p>• <strong>Illness:</strong> "I have a terrible [headache / stomachache / toothache / cough / fever]."</p>
-            <p>• <strong>Advice:</strong> "You should [see a doctor / take medicine / rest at home]."</p>
+            <h4>💡 Sentence Guides:</h4>
+            <p><strong>Text:</strong> "I have a terrible cough and a slight [headache / stomachache / toothache],
+            so I should [see a doctor / take medicine / rest at home]."</p>
         </div>
         <button class="clear-all-btn" onclick="clearAllData()">🔄 Reset All Text</button>
     </div>
@@ -184,11 +206,35 @@
     let recognition = null;
     let activeIndex = null;
 
+    // Fungsi pembantu untuk mengatur warna status terjawab / belum
+    function setAnsweredState(index, isAnswered) {
+        const row = document.getElementById(`row-${index}`);
+        const outputBox = document.getElementById(`output-${index}`);
+        const btn = document.getElementById(`btn-${index}`);
+
+        if (isAnswered) {
+            row.classList.add('answered');
+            outputBox.classList.add('answered');
+            if (activeIndex !== index) {
+                btn.classList.add('answered');
+                btn.textContent = "✅ Done";
+            }
+        } else {
+            row.classList.remove('answered');
+            outputBox.classList.remove('answered');
+            if (activeIndex !== index) {
+                btn.classList.remove('answered');
+                btn.textContent = "🎙️ Speak";
+            }
+        }
+    }
+
     // Render daftar siswa
     students.forEach((name, index) => {
         const dbId = name.replace(/[\s.]/g, ''); 
         const row = document.createElement('div');
         row.className = 'student-row';
+        row.id = `row-${index}`;
         row.innerHTML = `
             <div class="student-name">${name}</div>
             <button class="mic-btn" id="btn-${index}" onclick="toggleRecord(${index}, '${dbId}')">🎙️ Speak</button>
@@ -217,10 +263,18 @@
             database.ref('students/' + dbId).on('value', (snapshot) => {
                 const val = snapshot.val();
                 const outputBox = document.getElementById(`output-${index}`);
+                
                 if (val && val.text) {
                     outputBox.textContent = val.text;
+                    // Ubah warna jika sudah ada jawaban (bukan status sedang mendengarkan)
+                    if (val.text !== "Listening to your voice...") {
+                        setAnsweredState(index, true);
+                    } else {
+                        setAnsweredState(index, false);
+                    }
                 } else {
                     outputBox.textContent = "Click 'Speak' and start talking...";
+                    setAnsweredState(index, false);
                 }
             });
         });
@@ -242,16 +296,18 @@
             const btn = document.getElementById(`btn-${activeIndex}`);
             if (btn) {
                 btn.textContent = "🛑 Listening...";
+                btn.classList.remove('answered');
                 btn.classList.add('recording');
             }
         };
 
         recognition.onresult = function(event) {
             const resultText = event.results[0][0].transcript;
-            const currentStudentName = students[activeIndex];
+            const currentIndex = activeIndex;
+            const currentStudentName = students[currentIndex];
             const currentDbId = currentStudentName.replace(/[\s.]/g, '');
 
-            document.getElementById(`output-${activeIndex}`).textContent = resultText;
+            document.getElementById(`output-${currentIndex}`).textContent = resultText;
             if (database) {
                 database.ref('students/' + currentDbId).set({
                     name: currentStudentName,
@@ -259,12 +315,15 @@
                     updatedAt: Date.now()
                 });
             }
+            activeIndex = null;
+            setAnsweredState(currentIndex, true);
         };
 
         recognition.onerror = function(event) {
             console.error("Speech error:", event.error);
             if (activeIndex !== null) {
                 document.getElementById(`output-${activeIndex}`).textContent = "Error: " + event.error + ". Try again.";
+                setAnsweredState(activeIndex, false);
             }
             resetBtn(activeIndex);
         };
@@ -278,9 +337,15 @@
 
     function resetBtn(index) {
         const btn = document.getElementById(`btn-${index}`);
+        const row = document.getElementById(`row-${index}`);
         if (btn) {
-            btn.textContent = "🎙️ Speak";
             btn.classList.remove('recording');
+            if (row && row.classList.contains('answered')) {
+                btn.classList.add('answered');
+                btn.textContent = "✅ Done";
+            } else {
+                btn.textContent = "🎙️ Speak";
+            }
         }
         activeIndex = null;
     }
@@ -295,6 +360,7 @@
                 recognition.stop();
             }
             activeIndex = index;
+            setAnsweredState(index, false);
             document.getElementById(`output-${index}`).textContent = "Listening to your voice...";
             if (database) {
                 database.ref('students/' + dbId).set({
@@ -312,6 +378,7 @@
             } else {
                 students.forEach((_, index) => {
                     document.getElementById(`output-${index}`).textContent = "Click 'Speak' and start talking...";
+                    setAnsweredState(index, false);
                 });
             }
         }
