@@ -303,6 +303,7 @@
     };
 
     const TEACHER_PASSWORD = "Pertiwi987";
+    const DEFAULT_PLACEHOLDER = "Click 'Speak' and start talking...";
 
     const students = [
         "Ms. Ally", "Ms. Angel", "Ms. Flo", "Ms. JC", 
@@ -315,17 +316,22 @@
     let database = null;
     let recognition = null;
     let activeIndex = null;
+    // Menyimpan teks terakhir tiap siswa agar tidak hilang jika batal bicara
+    const savedTexts = {};
 
-    // Fungsi pembantu untuk mengatur warna status terjawab / belum
-    function setAnsweredState(index, isAnswered) {
+    function applyStudentUI(index, text) {
         const row = document.getElementById(`row-${index}`);
         const outputBox = document.getElementById(`output-${index}`);
         const btn = document.getElementById(`btn-${index}`);
+        const hasAnswer = Boolean(text && text.trim() !== "");
 
-        if (isAnswered) {
+        outputBox.textContent = hasAnswer ? text : DEFAULT_PLACEHOLDER;
+
+        if (hasAnswer) {
             row.classList.add('answered');
             outputBox.classList.add('answered');
             if (activeIndex !== index) {
+                btn.classList.remove('recording');
                 btn.classList.add('answered');
                 btn.textContent = "✅ Done";
             }
@@ -333,7 +339,7 @@
             row.classList.remove('answered');
             outputBox.classList.remove('answered');
             if (activeIndex !== index) {
-                btn.classList.remove('answered');
+                btn.classList.remove('recording', 'answered');
                 btn.textContent = "🎙️ Speak";
             }
         }
@@ -342,13 +348,14 @@
     // Render daftar siswa
     students.forEach((name, index) => {
         const dbId = name.replace(/[\s.]/g, ''); 
+        savedTexts[index] = "";
         const row = document.createElement('div');
         row.className = 'student-row';
         row.id = `row-${index}`;
         row.innerHTML = `
             <div class="student-name">${name}</div>
             <button class="mic-btn" id="btn-${index}" onclick="toggleRecord(${index}, '${dbId}')">🎙️ Speak</button>
-            <div class="result-box" id="output-${index}">Click 'Speak' and start talking...</div>
+            <div class="result-box" id="output-${index}">${DEFAULT_PLACEHOLDER}</div>
         `;
         container.appendChild(row);
     });
@@ -372,19 +379,17 @@
             const dbId = name.replace(/[\s.]/g, '');
             database.ref('students/' + dbId).on('value', (snapshot) => {
                 const val = snapshot.val();
-                const outputBox = document.getElementById(`output-${index}`);
-                
-                if (val && val.text) {
-                    outputBox.textContent = val.text;
-                    if (val.text !== "Listening to your voice...") {
-                        setAnsweredState(index, true);
-                    } else {
-                        setAnsweredState(index, false);
-                    }
-                } else {
-                    outputBox.textContent = "Click 'Speak' and start talking...";
-                    setAnsweredState(index, false);
+                const textFromDb = (val && val.text) ? val.text : "";
+                savedTexts[index] = textFromDb;
+
+                // Hanya perbarui kotak teks jika siswa tersebut sedang tidak merekam
+                if (activeIndex !== index) {
+                    applyStudentUI(index, textFromDb);
                 }
+            }, (error) => {
+                console.error("Firebase Read Error:", error);
+                statusBadge.textContent = "🔴 Firebase Read Blocked! Cek Realtime Database Rules.";
+                statusBadge.style.color = "#e74c3c";
             });
         });
     } catch (err) {
@@ -402,61 +407,68 @@
         recognition.lang = 'en-US';
 
         recognition.onstart = function() {
+            if (activeIndex === null) return;
             const btn = document.getElementById(`btn-${activeIndex}`);
+            const outputBox = document.getElementById(`output-${activeIndex}`);
             if (btn) {
                 btn.textContent = "🛑 Listening...";
                 btn.classList.remove('answered');
                 btn.classList.add('recording');
             }
+            if (outputBox) {
+                outputBox.textContent = "🎙️ Listening to your voice... Speak now!";
+            }
         };
 
         recognition.onresult = function(event) {
+            if (activeIndex === null) return;
             const resultText = event.results[0][0].transcript;
-            const currentIndex = activeIndex;
-            const currentStudentName = students[currentIndex];
+            const targetIndex = activeIndex;
+            const currentStudentName = students[targetIndex];
             const currentDbId = currentStudentName.replace(/[\s.]/g, '');
 
-            document.getElementById(`output-${currentIndex}`).textContent = resultText;
+            // Simpan ke memori lokal terlebih dahulu
+            savedTexts[targetIndex] = resultText;
+            activeIndex = null;
+            applyStudentUI(targetIndex, resultText);
+
+            // Simpan permanen ke Firebase
             if (database) {
                 database.ref('students/' + currentDbId).set({
                     name: currentStudentName,
                     text: resultText,
                     updatedAt: Date.now()
+                }).catch((err) => {
+                    console.error("Firebase Write Error:", err);
+                    statusBadge.textContent = "🔴 Gagal menyimpan ke Firebase! Pastikan Rules .write = true";
+                    statusBadge.style.color = "#e74c3c";
                 });
             }
-            activeIndex = null;
-            setAnsweredState(currentIndex, true);
         };
 
         recognition.onerror = function(event) {
             console.error("Speech error:", event.error);
-            if (activeIndex !== null) {
-                document.getElementById(`output-${activeIndex}`).textContent = "Error: " + event.error + ". Try again.";
-                setAnsweredState(activeIndex, false);
+            const targetIndex = activeIndex;
+            activeIndex = null;
+            if (targetIndex !== null) {
+                // Kembalikan teks sebelumnya (tidak menghapus jawaban lama)
+                applyStudentUI(targetIndex, savedTexts[targetIndex]);
+                if (event.error === 'not-allowed') {
+                    alert("Izin mikrofon ditolak browser. Silakan klik ikon gembok di samping URL dan izinkan Microphone.");
+                }
             }
-            resetBtn(activeIndex);
         };
 
         recognition.onend = function() {
-            resetBtn(activeIndex);
+            if (activeIndex !== null) {
+                const targetIndex = activeIndex;
+                activeIndex = null;
+                // Kembalikan tampilan ke data tersimpan terakhir
+                applyStudentUI(targetIndex, savedTexts[targetIndex]);
+            }
         };
     } else {
         alert("Browser tidak mendukung Speech Recognition. Gunakan Google Chrome.");
-    }
-
-    function resetBtn(index) {
-        const btn = document.getElementById(`btn-${index}`);
-        const row = document.getElementById(`row-${index}`);
-        if (btn) {
-            btn.classList.remove('recording');
-            if (row && row.classList.contains('answered')) {
-                btn.classList.add('answered');
-                btn.textContent = "✅ Done";
-            } else {
-                btn.textContent = "🎙️ Speak";
-            }
-        }
-        activeIndex = null;
     }
 
     function toggleRecord(index, dbId) {
@@ -466,17 +478,19 @@
             recognition.stop();
         } else {
             if (activeIndex !== null) {
+                const prevIndex = activeIndex;
+                activeIndex = null;
                 recognition.stop();
+                applyStudentUI(prevIndex, savedTexts[prevIndex]);
             }
             activeIndex = index;
-            setAnsweredState(index, false);
-            document.getElementById(`output-${index}`).textContent = "Listening to your voice...";
-            if (database) {
-                database.ref('students/' + dbId).set({
-                    text: "Listening to your voice..."
-                });
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error("Start recognition error:", e);
+                activeIndex = null;
+                applyStudentUI(index, savedTexts[index]);
             }
-            recognition.start();
         }
     }
 
@@ -502,16 +516,14 @@
 
         if (input.value === TEACHER_PASSWORD) {
             closeResetModal();
+            students.forEach((_, index) => {
+                savedTexts[index] = "";
+                applyStudentUI(index, "");
+            });
             if (database) {
                 database.ref('students').remove();
-            } else {
-                students.forEach((_, index) => {
-                    document.getElementById(`output-${index}`).textContent = "Click 'Speak' and start talking...";
-                    setAnsweredState(index, false);
-                });
             }
         } else {
-            // Reset animasi shake agar bergetar lagi setiap kali salah input
             tease.style.display = 'none';
             void tease.offsetWidth; 
             tease.style.display = 'block';
