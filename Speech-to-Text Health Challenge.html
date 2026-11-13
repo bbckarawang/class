@@ -156,10 +156,104 @@
         .clear-all-btn:hover {
             background-color: #c0392b;
         }
+
+        /* Styling Modal Password */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.55);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-box {
+            background: #fff;
+            padding: 25px 30px;
+            border-radius: 12px;
+            max-width: 380px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        .modal-box h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 1.2em;
+        }
+        .modal-box p {
+            margin: 0 0 15px 0;
+            color: #7f8c8d;
+            font-size: 0.95em;
+        }
+        .modal-input {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 1em;
+            border: 2px solid #dcdde1;
+            border-radius: 6px;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .modal-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .tease-msg {
+            display: none;
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            font-size: 0.95em;
+            animation: shake 0.35s ease;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .modal-btn-confirm {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .modal-btn-confirm:hover {
+            background-color: #c0392b;
+        }
+        .modal-btn-cancel {
+            background-color: #95a5a6;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .modal-btn-cancel:hover {
+            background-color: #7f8c8d;
+        }
+
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.03); }
             100% { transform: scale(1); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
         }
     </style>
 </head>
@@ -176,10 +270,24 @@
             <p><strong>Text:</strong> "I have a terrible cough and a slight [headache / stomachache / toothache],
             so I should [see a doctor / take medicine / rest at home]."</p>
         </div>
-        <button class="clear-all-btn" onclick="clearAllData()">🔄 Reset All Text</button>
+        <button class="clear-all-btn" onclick="openResetModal()">🔒 Reset All Text</button>
     </div>
 
     <div id="students-container"></div>
+</div>
+
+<!-- Modal Proteksi Password -->
+<div id="reset-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h4>🔒 Teacher Access Only</h4>
+        <p>Enter password to reset all students' text:</p>
+        <input type="password" id="reset-password-input" class="modal-input" placeholder="Enter password..." onkeydown="if(event.key === 'Enter') verifyResetPassword()">
+        <div id="tease-message" class="tease-msg">Ohhh? Trying to reset the board, huh? Nice try! 😜</div>
+        <div class="modal-actions">
+            <button class="modal-btn-confirm" onclick="verifyResetPassword()">Reset Now</button>
+            <button class="modal-btn-cancel" onclick="closeResetModal()">Cancel</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -193,6 +301,8 @@
         messagingSenderId: "980625786557",
         appId: "1:980625786557:web:2258de568232c8067359d4"
     };
+
+    const TEACHER_PASSWORD = "Pertiwi987";
 
     const students = [
         "Ms. Ally", "Ms. Angel", "Ms. Flo", "Ms. JC", 
@@ -266,7 +376,6 @@
                 
                 if (val && val.text) {
                     outputBox.textContent = val.text;
-                    // Ubah warna jika sudah ada jawaban (bukan status sedang mendengarkan)
                     if (val.text !== "Listening to your voice...") {
                         setAnsweredState(index, true);
                     } else {
@@ -371,8 +480,28 @@
         }
     }
 
-    function clearAllData() {
-        if (confirm("Are you sure you want to reset all students' text?")) {
+    // Fungsi Buka/Tutup & Verifikasi Password Reset
+    function openResetModal() {
+        const modal = document.getElementById('reset-modal');
+        const input = document.getElementById('reset-password-input');
+        const tease = document.getElementById('tease-message');
+        
+        input.value = '';
+        tease.style.display = 'none';
+        modal.style.display = 'flex';
+        input.focus();
+    }
+
+    function closeResetModal() {
+        document.getElementById('reset-modal').style.display = 'none';
+    }
+
+    function verifyResetPassword() {
+        const input = document.getElementById('reset-password-input');
+        const tease = document.getElementById('tease-message');
+
+        if (input.value === TEACHER_PASSWORD) {
+            closeResetModal();
             if (database) {
                 database.ref('students').remove();
             } else {
@@ -381,6 +510,13 @@
                     setAnsweredState(index, false);
                 });
             }
+        } else {
+            // Reset animasi shake agar bergetar lagi setiap kali salah input
+            tease.style.display = 'none';
+            void tease.offsetWidth; 
+            tease.style.display = 'block';
+            input.value = '';
+            input.focus();
         }
     }
 </script>
