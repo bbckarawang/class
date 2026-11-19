@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Speed Buzzer - BBC English</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MQTT.js over WebSockets -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .font-game {
+            font-family: 'Fredoka', sans-serif;
+        }
+        @keyframes buzzerRipple {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.65); }
+            70% { box-shadow: 0 0 0 28px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.88); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-ripple {
+            animation: buzzerRipple 1.6s infinite;
+        }
+        .animate-pop {
+            animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .buzzer-btn {
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+            box-shadow: 0 12px 0 #9f1239, 0 20px 30px rgba(0, 0, 0, 0.5);
+        }
+        .buzzer-btn:active:not(:disabled) {
+            transform: translateY(8px);
+            box-shadow: 0 4px 0 #9f1239, 0 8px 15px rgba(0, 0, 0, 0.5);
+        }
+        .buzzer-locked {
+            box-shadow: 0 8px 0 #1e293b, 0 12px 20px rgba(0, 0, 0, 0.4);
+        }
+        .buzzer-won {
+            box-shadow: 0 10px 0 #065f46, 0 18px 30px rgba(16, 185, 129, 0.35);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 sticky top-0 z-40 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center font-game font-bold text-white text-lg shadow-lg">
+                🔔
+            </div>
+            <div>
+                <h1 class="font-game font-bold text-base sm:text-lg leading-tight text-white">Speed Buzzer</h1>
+                <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                    <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="connText">Ready to connect</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="muteBtn" onclick="toggleMute()" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition active:scale-95" title="Toggle Sound">
+                <span id="muteIcon">🔊</span>
+            </button>
+            <button id="leaveBtn" onclick="confirmLeave()" class="hidden px-3 py-2 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-semibold transition active:scale-95">
+                Exit
+            </button>
+        </div>
+    </header>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+        <div id="toastMsg" class="bg-slate-800 border border-slate-700 text-white text-sm font-medium px-4 py-2.5 rounded-2xl shadow-2xl"></div>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="customModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-pop">
+            <h3 id="modalTitle" class="font-game text-xl font-bold text-white mb-2">Confirm</h3>
+            <p id="modalBody" class="text-slate-300 text-sm mb-6 leading-relaxed"></p>
+            <div class="flex gap-3 justify-end">
+                <button id="modalCancel" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition">Cancel</button>
+                <button id="modalConfirm" class="px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-bold text-sm transition">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 1. LANDING SCREEN ==================== -->
+    <main id="landingScreen" class="flex-1 flex flex-col items-center justify-center p-4 max-w-md mx-auto w-full">
+        <div class="text-center mb-8">
+            <span class="inline-block px-3 py-1 rounded-full bg-rose-500/15 text-rose-400 text-xs font-bold tracking-wider uppercase mb-3 border border-rose-500/30">
+                BBC English • Quick Quiz Buzzer
+            </span>
+            <h2 class="font-game text-3xl sm:text-4xl font-bold text-white mb-2">Fastest Finger First!</h2>
+            <p class="text-slate-400 text-sm">Real-time quiz buzzer with automatic 10-second lockout & auto-reset.</p>
+        </div>
+
+        <div class="w-full space-y-4">
+            <!-- Student Join Box -->
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-2xl">
+                        🚨
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold text-white">Join as Student</h3>
+                        <p class="text-xs text-slate-400">Enter your nickname & 4-digit room code</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="studentNameInput" maxlength="16" placeholder="Your Nickname (e.g., Rina)"
+                        class="w-full bg-slate-950 border border-slate-700 focus:border-rose-500 rounded-2xl px-4 py-3.5 text-white placeholder-slate-500 text-base outline-none transition">
+                    <div class="flex gap-2">
+                        <input type="tel" id="roomCodeInput" maxlength="4" placeholder="Room Code"
+                            class="w-full bg-slate-950 border border-slate-700 focus:border-rose-500 rounded-2xl px-4 py-3.5 text-white placeholder-slate-500 text-center font-mono text-lg tracking-widest uppercase outline-none transition">
+                        <button onclick="joinAsStudent()"
+                            class="px-6 py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-bold text-base shadow-lg shadow-rose-600/30 transition whitespace-nowrap">
+                            Join
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-slate-800"></div>
+                <span class="flex-shrink mx-4 text-slate-500 text-xs uppercase font-semibold">Or Teacher Control</span>
+                <div class="flex-grow border-t border-slate-800"></div>
+            </div>
+
+            <!-- Host Button -->
+            <button onclick="startAsHost()"
+                class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 active:scale-[0.98] text-slate-950 rounded-3xl p-5 shadow-xl shadow-orange-600/20 transition flex items-center justify-between text-left">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-950/20 flex items-center justify-center text-2xl">
+                        👑
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold">Game Master (Teacher)</h3>
+                        <p class="text-xs text-slate-900 font-medium">Host the quiz, see fastest player & keep score</p>
+                    </div>
+                </div>
+                <span class="text-xl font-bold">→</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- ==================== 2. STUDENT BUZZER SCREEN ==================== -->
+    <section id="studentScreen" class="hidden flex-1 flex flex-col justify-between p-4 max-w-md mx-auto w-full">
+        <!-- Student Header Info -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div id="studentAvatar" class="w-10 h-10 rounded-xl bg-rose-500 flex items-center justify-center font-bold text-white text-lg shadow">
+                    S
+                </div>
+                <div>
+                    <div id="studentDisplayName" class="font-bold text-white text-sm">Student</div>
+                    <div class="text-xs text-slate-400">Room: <span id="studentRoomBadge" class="font-mono font-bold text-amber-400">----</span></div>
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="text-[10px] uppercase tracking-wider text-slate-400 block font-bold">My Score</span>
+                <span id="studentMyScore" class="font-game text-xl font-bold text-amber-400">0</span>
+            </div>
+        </div>
+
+        <!-- Center Giant Buzzer Area -->
+        <div class="flex-1 flex flex-col items-center justify-center my-4">
+            <!-- Status Banner Above Button -->
+            <div id="studentStatusBanner" class="mb-7 text-center min-h-[64px] flex flex-col items-center justify-center">
+                <span class="inline-block px-3.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold uppercase tracking-wider border border-emerald-500/30 mb-1.5">
+                    ● Buzzer Ready
+                </span>
+                <p class="text-slate-300 text-sm">Tap the red button as fast as you can!</p>
+            </div>
+
+            <!-- Giant Circular Buzzer Button -->
+            <button id="giantBuzzerBtn" onclick="pressBuzzer()"
+                class="buzzer-btn animate-ripple w-60 h-60 sm:w-64 sm:h-64 rounded-full bg-gradient-to-b from-rose-500 to-rose-700 border-4 border-rose-300/40 flex flex-col items-center justify-center text-white focus:outline-none">
+                <span id="buzzerIcon" class="text-5xl mb-2">🔔</span>
+                <span id="buzzerLabel" class="font-game text-4xl font-extrabold tracking-wider">BUZZ!</span>
+                <span id="buzzerSubLabel" class="text-xs font-semibold text-rose-100/80 mt-1 uppercase tracking-widest">Tap Fast</span>
+            </button>
+        </div>
+
+        <!-- Bottom Countdown Bar -->
+        <div id="studentTimerBox" class="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center">
+            <div id="studentTimerText" class="text-xs text-slate-400 font-medium">
+                First player to buzz locks everyone else for <b class="text-white">10 seconds</b>.
+            </div>
+            <div id="studentProgressWrap" class="hidden w-full bg-slate-800 h-2.5 rounded-full overflow-hidden mt-2.5">
+                <div id="studentProgressBar" class="bg-amber-400 h-full transition-all duration-200" style="width: 100%"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 3. GAME MASTER (HOST) SCREEN ==================== -->
+    <section id="hostScreen" class="hidden flex-1 flex flex-col max-w-3xl mx-auto w-full p-4 pb-20">
+        
+        <!-- Room & Share Bar -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4 shadow-lg">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold block">Room Code</span>
+                    <div class="flex items-center gap-2">
+                        <span id="hostRoomCode" class="font-mono text-3xl font-extrabold text-amber-400 tracking-widest">0000</span>
+                        <button onclick="copyShareLink()" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold transition active:scale-95">
+                            🔗 Copy Invite Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Auto-Reset Duration Selector -->
+                <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-2 rounded-2xl">
+                    <span class="text-xs text-slate-400 font-semibold">Auto-Reset:</span>
+                    <select id="resetDurationSelect" class="bg-transparent text-amber-400 font-bold text-xs outline-none cursor-pointer">
+                        <option value="5" class="bg-slate-900">5 sec</option>
+                        <option value="10" selected class="bg-slate-900">10 sec</option>
+                        <option value="15" class="bg-slate-900">15 sec</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Buzzer Status Monitor Card -->
+        <div id="hostMonitorCard" class="bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 mb-4 text-center shadow-xl transition-all">
+            <div id="hostStatusIdle">
+                <div class="w-16 h-16 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center text-3xl mx-auto mb-3 animate-pulse">
+                    🟢
+                </div>
+                <h2 class="font-game text-2xl font-bold text-white mb-1">Buzzers Are OPEN!</h2>
+                <p class="text-slate-400 text-sm">Ask your quiz question now. Waiting for the fastest student...</p>
+            </div>
+
+            <div id="hostStatusLocked" class="hidden animate-pop">
+                <span class="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-extrabold uppercase tracking-wider mb-2">
+                    🏆 Fastest Player!
+                </span>
+                <h2 id="hostWinnerName" class="font-game text-3xl sm:text-4xl font-extrabold text-white mb-2">
+                    Student Name
+                </h2>
+                <p class="text-sm text-slate-300 mb-4">
+                    All other buzzers are locked! Auto-resetting in <span id="hostCountdownNum" class="font-mono font-extrabold text-amber-400 text-lg">10</span>s...
+                </p>
+
+                <!-- Progress Bar -->
+                <div class="w-full max-w-md mx-auto bg-slate-800 h-3 rounded-full overflow-hidden mb-5">
+                    <div id="hostProgressBar" class="bg-gradient-to-r from-amber-400 to-rose-500 h-full transition-all duration-200" style="width: 100%"></div>
+                </div>
+
+                <!-- Quick Award Point + Manual Reset Buttons -->
+                <div class="flex flex-wrap items-center justify-center gap-2.5">
+                    <button onclick="awardWinnerPoint()" class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-xs shadow transition">
+                        ⭐ +1 Point to Winner
+                    </button>
+                    <button onclick="hostForceReset()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-bold text-xs border border-slate-700 transition">
+                        🔄 Reset Buzzers Now
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connected Students & Live Scoreboard -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-game text-base font-bold text-white">
+                    👥 Players & Scoreboard (<span id="studentCount" class="text-amber-400">0</span>)
+                </h3>
+                <button onclick="resetAllScores()" class="text-xs text-slate-400 hover:text-rose-400 underline">
+                    Reset Scores
+                </button>
+            </div>
+
+            <div id="scoreboardList" class="space-y-2">
+                <p class="text-xs text-slate-500 italic py-4 text-center">Waiting for students to join with the 4-digit room code...</p>
+            </div>
+        </div>
+
+    </section>
+
+    <script>
+        // ==================== GLOBAL STATE ====================
+        let client = null;
+        let role = null; // 'host' | 'student'
+        let roomCode = "";
+        let myId = "u_" + Math.random().toString(36).substring(2, 9);
+        let myName = "";
+        let isMuted = false;
+        let heartbeatTimer = null;
+
+        // Buzzer Lock State
+        let isLocked = false;
+        let currentWinnerId = null;
+        let currentWinnerName = "";
+        let lockExpiresAt = 0;
+        let lockDurationMs = 10000;
+        let countdownInterval = null;
+
+        // Host Roster & Scores
+        let students = {}; // { id: { id, name, score, lastSeen } }
+
+        const AVATAR_COLORS = [
+            "bg-rose-500", "bg-amber-500", "bg-emerald-500", "bg-cyan-500",
+            "bg-indigo-500", "bg-purple-500", "bg-pink-500", "bg-teal-500"
+        ];
+        let myColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+
+        // ==================== WEB AUDIO SOUND ENGINE ====================
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type = 'sine', duration = 0.2, vol = 0.25, delay = 0) {
+                if (isMuted) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + delay);
+                    osc.stop(this.ctx.currentTime + delay + duration);
+                } catch (e) {}
+            },
+            playBuzzWin() {
+                // Exciting game-show bell chord
+                this.playTone(587.33, 'triangle', 0.22, 0.35, 0);    // D5
+                this.playTone(880.00, 'triangle', 0.38, 0.35, 0.08); // A5
+            },
+            playBuzzLocked() {
+                // Low thud when someone else beat you
+                this.playTone(180, 'sawtooth', 0.25, 0.18, 0);
+                this.playTone(140, 'sawtooth', 0.3, 0.18, 0.12);
+            },
+            playUnlock() {
+                // Crisp chime when buzzer resets
+                this.playTone(783.99, 'sine', 0.18, 0.2, 0);
+                this.playTone(1046.50, 'sine', 0.25, 0.2, 0.09);
+            }
+        };
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            document.getElementById('muteIcon').textContent = isMuted ? '🔇' : '🔊';
+            showToast(isMuted ? 'Sound muted' : 'Sound enabled');
+        }
+
+        // ==================== UI HELPERS ====================
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('opacity-0', '-translate-y-2');
+            clearTimeout(window._toastTimeout);
+            window._toastTimeout = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+            }, 2500);
+        }
+
+        function openModal(title, body, onConfirm) {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = body;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            document.getElementById('modalCancel').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+            document.getElementById('modalConfirm').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        function setConnStatus(status) {
+            const dot = document.getElementById('connDot');
+            const txt = document.getElementById('connText');
+            if (status === 'connected') {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+                txt.textContent = `Live • Room ${roomCode}`;
+            } else if (status === 'connecting') {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                txt.textContent = "Connecting...";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-rose-500";
+                txt.textContent = "Reconnecting...";
+            }
+        }
+
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const urlRoom = params.get('room');
+            if (urlRoom && /^\d{4}$/.test(urlRoom)) {
+                document.getElementById('roomCodeInput').value = urlRoom;
+                showToast(`Room ${urlRoom} pre-filled!`);
+            }
+        };
+
+        // ==================== MQTT REAL-TIME CONNECTION ====================
+        function connectMQTT(onReady) {
+            setConnStatus('connecting');
+            const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+            const clientId = 'bbc_buzzer_' + myId + '_' + Math.floor(Math.random() * 1000);
+
+            client = mqtt.connect(brokerUrl, {
+                clientId: clientId,
+                clean: true,
+                connectTimeout: 8000,
+                reconnectPeriod: 2000
+            });
+
+            client.on('connect', () => {
+                setConnStatus('connected');
+                const topic = `bbc_ecp_buzzer/room/${roomCode}/#`;
+                client.subscribe(topic, { qos: 1 }, (err) => {
+                    if (!err && onReady) onReady();
+                });
+            });
+
+            client.on('reconnect', () => setConnStatus('connecting'));
+            client.on('offline', () => setConnStatus('offline'));
+            client.on('error', () => setConnStatus('offline'));
+
+            client.on('message', (topic, message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    handleIncomingMessage(topic, data);
+                } catch (e) {}
+            });
+        }
+
+        function publishEvent(subtopic, payload) {
+            if (!client || !client.connected) return;
+            const topic = `bbc_ecp_buzzer/room/${roomCode}/${subtopic}`;
+            client.publish(topic, JSON.stringify(payload), { qos: 1 });
+        }
+
+        // ==================== ENTRY & EXIT ====================
+        function startAsHost() {
+            AudioEngine.init();
+            role = 'host';
+            roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('hostRoomCode').textContent = roomCode;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('hostScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                showToast(`Room ${roomCode} ready! Share link with students.`);
+                heartbeatTimer = setInterval(() => {
+                    pruneInactiveStudents();
+                }, 5000);
+            });
+        }
+
+        function joinAsStudent() {
+            AudioEngine.init();
+            const nameVal = document.getElementById('studentNameInput').value.trim();
+            const codeVal = document.getElementById('roomCodeInput').value.trim();
+
+            if (!nameVal) return showToast("Enter your nickname first!");
+            if (!/^\d{4}$/.test(codeVal)) return showToast("Enter a valid 4-digit Room Code!");
+
+            role = 'student';
+            myName = nameVal;
+            roomCode = codeVal;
+
+            document.getElementById('studentDisplayName').textContent = myName;
+            document.getElementById('studentRoomBadge').textContent = roomCode;
+            const avatar = document.getElementById('studentAvatar');
+            avatar.textContent = myName.charAt(0).toUpperCase();
+            avatar.className = `w-10 h-10 rounded-xl ${myColor} flex items-center justify-center font-bold text-white text-lg shadow`;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('studentScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                sendStudentPresence();
+                heartbeatTimer = setInterval(sendStudentPresence, 4000);
+                AudioEngine.playUnlock();
+            });
+        }
+
+        function sendStudentPresence() {
+            publishEvent('presence', {
+                id: myId,
+                name: myName,
+                color: myColor,
+                ts: Date.now()
+            });
+        }
+
+        function confirmLeave() {
+            openModal("Leave Buzzer Room?", "Disconnect from this quiz session?", () => {
+                clearInterval(heartbeatTimer);
+                clearInterval(countdownInterval);
+                if (role === 'student') publishEvent('leave', { id: myId });
+                if (client) client.end();
+                location.href = window.location.pathname;
+            });
+        }
+
+        function copyShareLink() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            const tempInput = document.createElement('input');
+            tempInput.value = url;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast("Invite link copied! Paste in WhatsApp group.");
+        }
+
+        // ==================== BUZZER LOGIC (FIRST-COME LOCKOUT) ====================
+        function pressBuzzer() {
+            if (isLocked) return;
+            AudioEngine.init();
+
+            // Optimistically lock locally right away to prevent double-taps
+            const durationSec = 10;
+            const now = Date.now();
+            activateBuzzerLock(myId, myName, durationSec * 1000);
+
+            // Broadcast press event to Host and all other Students
+            publishEvent('buzz', {
+                winnerId: myId,
+                winnerName: myName,
+                ts: now
+            });
+        }
+
+        function handleIncomingMessage(topic, data) {
+            const sub = topic.split('/').pop();
+
+            // 1. Presence & Roster Updates (Host)
+            if (role === 'host') {
+                if (sub === 'presence') {
+                    const existing = students[data.id];
+                    students[data.id] = {
+                        id: data.id,
+                        name: data.name,
+                        color: data.color || 'bg-rose-500',
+                        score: existing ? existing.score : 0,
+                        lastSeen: Date.now()
+                    };
+                    if (!existing) {
+                        AudioEngine.playUnlock();
+                        showToast(`${data.name} joined!`);
+                    }
+                    renderHostScoreboard();
+                } else if (sub === 'leave') {
+                    delete students[data.id];
+                    renderHostScoreboard();
+                }
+            }
+
+            // 2. Someone pressed the buzzer!
+            if (sub === 'buzz') {
+                // Only accept the FIRST buzz when unlocked
+                if (!isLocked) {
+                    const durSec = role === 'host'
+                        ? parseInt(document.getElementById('resetDurationSelect').value || '10', 10)
+                        : 10;
+
+                    activateBuzzerLock(data.winnerId, data.winnerName, durSec * 1000);
+
+                    // Host broadcasts authoritative lock timestamp so everyone resets in sync
+                    if (role === 'host') {
+                        publishEvent('lock_sync', {
+                            winnerId: data.winnerId,
+                            winnerName: data.winnerName,
+                            durationMs: durSec * 1000
+                        });
+                    }
+                }
+            }
+
+            // 3. Authoritative sync from Host
+            if (sub === 'lock_sync') {
+                if (!isLocked || currentWinnerId !== data.winnerId) {
+                    activateBuzzerLock(data.winnerId, data.winnerName, data.durationMs);
+                }
+            }
+
+            // 4. Manual Reset from Host
+            if (sub === 'reset_now') {
+                unlockBuzzer(true);
+            }
+
+            // 5. Score sync for students
+            if (sub === 'scores' && role === 'student') {
+                if (typeof data[myId] === 'number') {
+                    document.getElementById('studentMyScore').textContent = data[myId];
+                }
+            }
+        }
+
+        function activateBuzzerLock(winnerId, winnerName, durationMs) {
+            isLocked = true;
+            currentWinnerId = winnerId;
+            currentWinnerName = winnerName;
+            lockDurationMs = durationMs;
+            lockExpiresAt = Date.now() + durationMs;
+
+            clearInterval(countdownInterval);
+
+            if (role === 'student') {
+                const btn = document.getElementById('giantBuzzerBtn');
+                const icon = document.getElementById('buzzerIcon');
+                const label = document.getElementById('buzzerLabel');
+                const sub = document.getElementById('buzzerSubLabel');
+                const banner = document.getElementById('studentStatusBanner');
+                const progressWrap = document.getElementById('studentProgressWrap');
+
+                btn.disabled = true;
+                progressWrap.classList.remove('hidden');
+
+                if (winnerId === myId) {
+                    if (navigator.vibrate) navigator.vibrate([250, 80, 250]);
+                    AudioEngine.playBuzzWin();
+                    btn.className = "buzzer-won w-60 h-60 sm:w-64 sm:h-64 rounded-full bg-gradient-to-b from-emerald-400 to-emerald-600 border-4 border-emerald-200 flex flex-col items-center justify-center text-slate-950";
+                    icon.textContent = "🏆";
+                    label.textContent = "YOU WON!";
+                    sub.textContent = "Answer Now!";
+                    sub.className = "text-xs font-extrabold text-slate-900 mt-1 uppercase tracking-widest";
+                    banner.innerHTML = `
+                        <span class="inline-block px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-extrabold uppercase mb-1">
+                            🎉 Fastest Finger!
+                        </span>
+                        <p class="text-white font-bold text-sm">Speak your answer in English now!</p>
+                    `;
+                } else {
+                    if (navigator.vibrate) navigator.vibrate(120);
+                    AudioEngine.playBuzzLocked();
+                    btn.className = "buzzer-locked w-60 h-60 sm:w-64 sm:h-64 rounded-full bg-slate-800 border-4 border-slate-700 flex flex-col items-center justify-center text-slate-400 opacity-85 cursor-not-allowed";
+                    icon.textContent = "🔒";
+                    label.textContent = "LOCKED";
+                    sub.textContent = "Too Slow";
+                    sub.className = "text-xs font-semibold text-slate-500 mt-1 uppercase tracking-widest";
+                    banner.innerHTML = `
+                        <span class="inline-block px-3.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold uppercase mb-1">
+                            ⚡ ${escapeHtml(winnerName)} buzzed first!
+                        </span>
+                        <p class="text-slate-400 text-xs">Buzzer locked while ${escapeHtml(winnerName)} answers.</p>
+                    `;
+                }
+            } else if (role === 'host') {
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                AudioEngine.playBuzzWin();
+                document.getElementById('hostMonitorCard').className = "bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 mb-4 text-center shadow-2xl transition-all";
+                document.getElementById('hostStatusIdle').classList.add('hidden');
+                document.getElementById('hostStatusLocked').classList.remove('hidden');
+                document.getElementById('hostWinnerName').textContent = winnerName;
+            }
+
+            // Start 100ms smooth countdown tick
+            updateCountdownUI();
+            countdownInterval = setInterval(updateCountdownUI, 100);
+        }
+
+        function updateCountdownUI() {
+            const remainingMs = Math.max(0, lockExpiresAt - Date.now());
+            const remainingSec = Math.ceil(remainingMs / 1000);
+            const pct = Math.max(0, Math.min(100, (remainingMs / lockDurationMs) * 100));
+
+            if (role === 'student') {
+                document.getElementById('studentTimerText').innerHTML =
+                    `Auto-resetting buzzer in <b class="text-amber-400 text-sm">${remainingSec}s</b>...`;
+                document.getElementById('studentProgressBar').style.width = `${pct}%`;
+            } else if (role === 'host') {
+                document.getElementById('hostCountdownNum').textContent = remainingSec;
+                document.getElementById('hostProgressBar').style.width = `${pct}%`;
+            }
+
+            if (remainingMs <= 0) {
+                unlockBuzzer(false);
+            }
+        }
+
+        function unlockBuzzer(manualReset) {
+            clearInterval(countdownInterval);
+            isLocked = false;
+            currentWinnerId = null;
+            currentWinnerName = "";
+
+            if (!manualReset) {
+                AudioEngine.playUnlock();
+            }
+
+            if (role === 'student') {
+                const btn = document.getElementById('giantBuzzerBtn');
+                const icon = document.getElementById('buzzerIcon');
+                const label = document.getElementById('buzzerLabel');
+                const sub = document.getElementById('buzzerSubLabel');
+                const banner = document.getElementById('studentStatusBanner');
+
+                btn.disabled = false;
+                btn.className = "buzzer-btn animate-ripple w-60 h-60 sm:w-64 sm:h-64 rounded-full bg-gradient-to-b from-rose-500 to-rose-700 border-4 border-rose-300/40 flex flex-col items-center justify-center text-white focus:outline-none";
+                icon.textContent = "🔔";
+                label.textContent = "BUZZ!";
+                sub.textContent = "Tap Fast";
+                sub.className = "text-xs font-semibold text-rose-100/80 mt-1 uppercase tracking-widest";
+
+                banner.innerHTML = `
+                    <span class="inline-block px-3.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold uppercase tracking-wider border border-emerald-500/30 mb-1.5">
+                        ● Buzzer Ready
+                    </span>
+                    <p class="text-slate-300 text-sm">Tap the red button as fast as you can!</p>
+                `;
+
+                document.getElementById('studentProgressWrap').classList.add('hidden');
+                document.getElementById('studentTimerText').innerHTML =
+                    `First player to buzz locks everyone else for <b class="text-white">10 seconds</b>.`;
+            } else if (role === 'host') {
+                document.getElementById('hostMonitorCard').className = "bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 mb-4 text-center shadow-xl transition-all";
+                document.getElementById('hostStatusLocked').classList.add('hidden');
+                document.getElementById('hostStatusIdle').classList.remove('hidden');
+            }
+        }
+
+        function hostForceReset() {
+            unlockBuzzer(true);
+            AudioEngine.playUnlock();
+            publishEvent('reset_now', { ts: Date.now() });
+            showToast("All buzzers unlocked immediately!");
+        }
+
+        // ==================== HOST SCOREBOARD MANAGEMENT ====================
+        function pruneInactiveStudents() {
+            const now = Date.now();
+            let changed = false;
+            Object.keys(students).forEach(id => {
+                if (now - students[id].lastSeen > 20000) {
+                    delete students[id];
+                    changed = true;
+                }
+            });
+            if (changed) renderHostScoreboard();
+        }
+
+        function adjustScore(id, delta) {
+            if (!students[id]) return;
+            students[id].score = Math.max(0, students[id].score + delta);
+            renderHostScoreboard();
+            broadcastScores();
+        }
+
+        function awardWinnerPoint() {
+            if (currentWinnerId && students[currentWinnerId]) {
+                adjustScore(currentWinnerId, 1);
+                showToast(`+1 Point awarded to ${students[currentWinnerId].name}!`);
+            } else {
+                showToast("Winner not found in roster.");
+            }
+        }
+
+        function resetAllScores() {
+            Object.keys(students).forEach(id => students[id].score = 0);
+            renderHostScoreboard();
+            broadcastScores();
+            showToast("All scores reset to 0.");
+        }
+
+        function broadcastScores() {
+            const map = {};
+            Object.values(students).forEach(s => map[s.id] = s.score);
+            publishEvent('scores', map);
+        }
+
+        function renderHostScoreboard() {
+            const list = Object.values(students).sort((a, b) => b.score - a.score);
+            document.getElementById('studentCount').textContent = list.length;
+            const container = document.getElementById('scoreboardList');
+
+            if (list.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500 italic py-4 text-center">Waiting for students to join with the 4-digit room code...</p>`;
+                return;
+            }
+
+            container.innerHTML = list.map((s, index) => `
+                <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3">
+                    <div class="flex items-center gap-3">
+                        <span class="font-mono text-xs font-bold text-slate-500 w-4">#${index + 1}</span>
+                        <div class="w-8 h-8 rounded-xl ${s.color} flex items-center justify-center font-bold text-white text-sm">
+                            ${escapeHtml(s.name.charAt(0).toUpperCase())}
+                        </div>
+                        <span class="font-bold text-white text-sm">${escapeHtml(s.name)}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustScore('${s.id}', -1)" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-base transition active:scale-90">-</button>
+                        <span class="font-game text-lg font-extrabold text-amber-400 w-7 text-center">${s.score}</span>
+                        <button onclick="adjustScore('${s.id}', 1)" class="w-8 h-8 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-base transition active:scale-90">+</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+    </script>
+</body>
+</html>
