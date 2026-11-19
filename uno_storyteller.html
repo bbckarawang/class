@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNO Storyteller</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MQTT.js over WebSockets -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .font-game {
+            font-family: 'Fredoka', sans-serif;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.88) translateY(8px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        @keyframes flipReveal {
+            0% { transform: rotateY(90deg) scale(0.92); opacity: 0.4; }
+            100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+        }
+        @keyframes greenPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); }
+            50% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); }
+        }
+        .animate-pop {
+            animation: popIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-flip {
+            animation: flipReveal 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-green-glow {
+            animation: greenPulse 1.6s infinite;
+        }
+        .uno-card-shadow {
+            box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.18), inset 0 0 0 4px rgba(255, 255, 255, 0.85);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-amber-50/70 via-sky-50/70 to-rose-50/60 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 via-amber-400 to-emerald-500 flex items-center justify-center font-game font-extrabold text-white text-lg shadow-md">
+                UNO
+            </div>
+            <div>
+                <h1 class="font-game font-bold text-base sm:text-lg leading-tight text-slate-900">UNO Storyteller</h1>
+                <div class="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                    <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="connText">Ready to connect</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="muteBtn" onclick="toggleMute()" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition active:scale-95" title="Toggle Sound">
+                <span id="muteIcon">🔊</span>
+            </button>
+            <button id="leaveBtn" onclick="confirmLeave()" class="hidden px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition active:scale-95">
+                Exit
+            </button>
+        </div>
+    </header>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+        <div id="toastMsg" class="bg-slate-900 text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-xl"></div>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-pop">
+            <h3 id="modalTitle" class="font-game text-xl font-bold text-slate-900 mb-2">Confirm</h3>
+            <p id="modalBody" class="text-slate-600 text-sm mb-6 leading-relaxed"></p>
+            <div class="flex gap-3 justify-end">
+                <button id="modalCancel" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition">Cancel</button>
+                <button id="modalConfirm" class="px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-bold text-sm transition">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 1. LANDING SCREEN ==================== -->
+    <main id="landingScreen" class="flex-1 flex flex-col items-center justify-center p-4 max-w-md mx-auto w-full">
+        <div class="text-center mb-7">
+            <span class="inline-block px-3.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold tracking-wider uppercase mb-3">
+                Collaborative Card Storytelling
+            </span>
+            <h2 class="font-game text-3xl sm:text-4xl font-bold text-slate-900 mb-2">UNO Storyteller</h2>
+            <p class="text-slate-500 text-sm">Flip your cards, watch the traffic light turn green, and build one crazy story together!</p>
+        </div>
+
+        <div class="w-full space-y-4">
+            <!-- Student Join Card -->
+            <div class="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xl shadow-slate-200/50">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl">
+                        🃏
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold text-slate-900">Join as Student</h3>
+                        <p class="text-xs text-slate-500">Enter your nickname & 4-digit room code</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="studentNameInput" maxlength="16" placeholder="Your Nickname (e.g., Sari)"
+                        class="w-full bg-slate-50 border border-slate-300 focus:border-rose-500 focus:bg-white rounded-2xl px-4 py-3.5 text-slate-900 placeholder-slate-400 text-base font-medium outline-none transition">
+                    <div class="flex gap-2">
+                        <input type="tel" id="roomCodeInput" maxlength="4" placeholder="Room Code"
+                            class="w-full bg-slate-50 border border-slate-300 focus:border-rose-500 focus:bg-white rounded-2xl px-4 py-3.5 text-slate-900 placeholder-slate-400 text-center font-mono text-lg font-bold tracking-widest uppercase outline-none transition">
+                        <button onclick="joinAsStudent()"
+                            class="px-6 py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-bold text-base shadow-lg shadow-rose-600/25 transition whitespace-nowrap">
+                            Join
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-slate-200"></div>
+                <span class="flex-shrink mx-4 text-slate-400 text-xs uppercase font-bold">Or Game Master</span>
+                <div class="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            <!-- Host Card -->
+            <button onclick="startAsHost()"
+                class="w-full bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 hover:opacity-95 active:scale-[0.98] text-white rounded-3xl p-5 shadow-xl shadow-orange-500/20 transition flex items-center justify-between text-left">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-12 h-12 rounded-2xl bg-white/25 flex items-center justify-center text-2xl">
+                        👑
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold">Game Master (Teacher)</h3>
+                        <p class="text-xs text-white/90 font-medium">Deal cards, set story starters & control turns</p>
+                    </div>
+                </div>
+                <span class="text-xl font-extrabold">→</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- ==================== 2. STUDENT GAME SCREEN ==================== -->
+    <section id="studentScreen" class="hidden flex-1 flex flex-col max-w-md mx-auto w-full p-4 pb-12 space-y-4">
+        
+        <!-- Student Header Bar -->
+        <div class="bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-3">
+                <div id="studentAvatar" class="w-10 h-10 rounded-xl bg-rose-500 flex items-center justify-center font-bold text-white text-lg shadow-sm">
+                    S
+                </div>
+                <div>
+                    <div id="studentDisplayName" class="font-bold text-slate-900 text-sm">Student</div>
+                    <div class="text-xs text-slate-500 font-medium">Room: <span id="studentRoomBadge" class="font-mono font-bold text-rose-600">----</span></div>
+                </div>
+            </div>
+            <span class="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
+                Cards Left: <span id="studentCardsLeft" class="text-rose-600 font-extrabold">0</span>
+            </span>
+        </div>
+
+        <!-- Traffic Light Turn Indicator Banner -->
+        <div id="trafficLightBox" class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-sm transition-all">
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <!-- Visual Traffic Light -->
+                    <div class="bg-slate-900 p-2 rounded-2xl flex flex-col gap-1.5 shadow-inner">
+                        <span id="lightRed" class="w-4 h-4 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e]"></span>
+                        <span id="lightGreen" class="w-4 h-4 rounded-full bg-emerald-950"></span>
+                    </div>
+                    <div>
+                        <span id="turnStatusBadge" class="inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[11px] font-extrabold uppercase tracking-wider mb-0.5">
+                            🔴 Red Light • Wait
+                        </span>
+                        <h3 id="turnStatusTitle" class="font-game text-lg font-bold text-slate-900 leading-tight">
+                            Waiting for Game Master...
+                        </h3>
+                        <p id="turnStatusSub" class="text-xs text-slate-500 mt-0.5">
+                            Get ready to flip your cards!
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Done Speaking Button (Visible ONLY when Green Light is ON) -->
+                <button id="studentDoneBtn" onclick="studentFinishTurn()"
+                    class="hidden px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 transition whitespace-nowrap">
+                    ✅ Done<br><span class="text-[10px] font-normal opacity-90">Pass Next</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Story Starter Prompt Box -->
+        <div id="studentStoryStarterBox" class="hidden bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 shadow-sm">
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 block mb-0.5">📖 Story Opening Prompt</span>
+            <p id="studentStoryStarterText" class="text-sm font-bold text-slate-800 italic">"..."</p>
+        </div>
+
+        <!-- Rule Helper Pill -->
+        <div id="studentRuleBanner" class="hidden bg-sky-50 border border-sky-200 rounded-2xl px-4 py-2.5 text-xs text-sky-900 font-medium text-center">
+        </div>
+
+        <!-- Student Card Hand Grid (Face-Down & Flippable Cards) -->
+        <div id="studentCardsContainer" class="flex-1">
+            <div class="bg-white/80 border border-slate-200 rounded-3xl p-8 text-center shadow-sm">
+                <div class="text-4xl mb-3">🃏</div>
+                <h3 class="font-game text-lg font-bold text-slate-800 mb-1">No Cards Dealt Yet</h3>
+                <p class="text-xs text-slate-500">Wait for your teacher to deal UNO cards to everyone's screen!</p>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- ==================== 3. GAME MASTER (HOST) SCREEN ==================== -->
+    <section id="hostScreen" class="hidden flex-1 flex flex-col max-w-3xl mx-auto w-full p-4 pb-24 space-y-4">
+        
+        <!-- Room & Share Bar -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <span class="text-xs uppercase tracking-wider text-slate-400 font-bold block">Room Code</span>
+                <div class="flex items-center gap-2">
+                    <span id="hostRoomCode" class="font-mono text-3xl font-extrabold text-rose-600 tracking-widest">0000</span>
+                    <button onclick="copyShareLink()" class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition active:scale-95">
+                        🔗 Copy Invite Link
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">
+                    👥 Players: <span id="studentCount" class="text-rose-600">0</span>
+                </span>
+                <button onclick="resetEntireGame()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition active:scale-95">
+                    🔄 Reset All
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 1: Deal Cards Configuration -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="font-game text-lg font-bold text-slate-900">1. Deal Cards to Students</h3>
+                <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                    <span class="text-xs font-bold text-slate-600">Cards / Student:</span>
+                    <select id="cardsPerPlayerSelect" class="bg-transparent font-extrabold text-rose-600 text-sm outline-none cursor-pointer">
+                        <option value="1">1 Card</option>
+                        <option value="2">2 Cards</option>
+                        <option value="3" selected>3 Cards</option>
+                        <option value="4">4 Cards</option>
+                        <option value="5">5 Cards</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 3 Card Deck Modes -->
+            <div class="grid grid-cols-3 gap-2">
+                <button onclick="selectDeckMode('numbers')" id="deckBtn-numbers"
+                    class="p-3 rounded-2xl border-2 border-rose-500 bg-rose-50 text-rose-950 text-left transition shadow-sm">
+                    <div class="text-lg mb-0.5">🔢</div>
+                    <div class="font-game font-bold text-xs sm:text-sm">UNO Numbers</div>
+                    <div class="text-[10px] text-rose-700 leading-tight mt-0.5">0–9 + Colors & Special Cards</div>
+                </button>
+
+                <button onclick="selectDeckMode('alphabet')" id="deckBtn-alphabet"
+                    class="p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 text-left transition">
+                    <div class="text-lg mb-0.5">🔤</div>
+                    <div class="font-game font-bold text-xs sm:text-sm">Alphabet A–Z</div>
+                    <div class="text-[10px] text-slate-500 leading-tight mt-0.5">Start sentence or word with letter</div>
+                </button>
+
+                <button onclick="selectDeckMode('words')" id="deckBtn-words"
+                    class="p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 text-left transition">
+                    <div class="text-lg mb-0.5">📝</div>
+                    <div class="font-game font-bold text-xs sm:text-sm">Custom Words</div>
+                    <div class="text-[10px] text-slate-500 leading-tight mt-0.5">GM inputs secret words to flip</div>
+                </button>
+            </div>
+
+            <!-- Options for Numbers / Alphabet -->
+            <div id="standardOptionsBox" class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5">
+                <span class="text-xs font-bold text-slate-700">Include Special UNO Action Cards (SKIP & REVERSE)?</span>
+                <input type="checkbox" id="includeSpecialCheck" checked class="w-4 h-4 accent-rose-600 cursor-pointer">
+            </div>
+
+            <!-- Custom Word Pool Input (Visible when Mode = Custom Words) -->
+            <div id="customWordsBox" class="hidden bg-sky-50/70 border border-sky-200 rounded-2xl p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-extrabold text-sky-900 uppercase">Enter Words (Separated by Commas)</label>
+                    <button onclick="fillSampleWords()" class="text-xs text-sky-700 font-bold underline hover:text-sky-900">
+                        + Fill Fun Words
+                    </button>
+                </div>
+                <textarea id="customWordPoolInput" rows="2" placeholder="e.g., Dragon, Restaurant, Police, Spicy, Rain, Money, Ghost, Coffee, Airport, Selfie"
+                    class="w-full bg-white border border-sky-300 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none"></textarea>
+                <p class="text-[11px] text-sky-800">All students receive face-down cards and tap to flip & reveal their words!</p>
+            </div>
+
+            <!-- Optional Story Starter -->
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="text-xs font-bold text-slate-600">Optional Story Opening Sentence:</label>
+                    <button onclick="pickRandomStarter()" class="text-xs text-amber-700 font-bold hover:underline">🎲 Random Starter</button>
+                </div>
+                <input type="text" id="storyStarterInput" placeholder="e.g., Yesterday at the restaurant, something crazy happened..."
+                    class="w-full bg-slate-50 border border-slate-200 focus:border-amber-400 focus:bg-white rounded-2xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none">
+            </div>
+
+            <button onclick="dealCardsToAll()"
+                class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-500 hover:opacity-95 active:scale-[0.99] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-rose-500/25 transition">
+                🃏 Shuffle & Deal Cards Now
+            </button>
+        </div>
+
+        <!-- Step 2: Traffic Light Turn Controller -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h3 class="font-game text-lg font-bold text-slate-900">2. Traffic Light Turn Control</h3>
+                    <p class="text-xs text-slate-500">Green light = speaking turn. Red light = wait & listen.</p>
+                </div>
+                <button onclick="pickRandomNextSpeaker()"
+                    class="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 transition">
+                    🟢 Random Green Light
+                </button>
+            </div>
+
+            <!-- Current Speaker Status Strip -->
+            <div id="hostTurnMonitor" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span id="hostActiveLightDot" class="w-4 h-4 rounded-full bg-slate-300"></span>
+                    <div>
+                        <span class="text-[11px] font-bold uppercase text-slate-400 block">Current Speaker</span>
+                        <span id="hostCurrentSpeakerName" class="font-game text-lg font-bold text-slate-800">Nobody yet (All Red)</span>
+                    </div>
+                </div>
+                <button onclick="setAllRedLight()" class="px-3 py-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold transition">
+                    🔴 All Red (Pause)
+                </button>
+            </div>
+
+            <!-- Student Roster with Manual Green Light Trigger -->
+            <div>
+                <span class="text-xs font-bold text-slate-500 block mb-2">Or tap any student below to give them the Green Light manually:</span>
+                <div id="hostPlayerGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <p class="text-xs text-slate-400 italic py-3 col-span-full text-center">Waiting for students to join...</p>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <script>
+        // ==================== DATA & CONSTANTS ====================
+        const UNO_COLORS = [
+            { name: "RED", bg: "from-rose-500 to-red-600", badge: "bg-rose-100 text-rose-700", rule: "Conflict / Problem" },
+            { name: "BLUE", bg: "from-sky-500 to-blue-600", badge: "bg-sky-100 text-sky-700", rule: "Place / Travel" },
+            { name: "GREEN", bg: "from-emerald-500 to-green-600", badge: "bg-emerald-100 text-emerald-700", rule: "Good Luck / Happy" },
+            { name: "YELLOW", bg: "from-amber-400 to-yellow-500", badge: "bg-amber-100 text-amber-800", rule: "Surprise / Funny" }
+        ];
+
+        const STORY_STARTERS = [
+            "Last night at 11 PM, I heard a strange knock on my door and...",
+            "We ordered food at a mysterious restaurant, and when the waiter opened the plate...",
+            "I woke up this morning with a suitcase full of cash and a plane ticket to...",
+            "During our English class hangout, a celebrity suddenly walked in and...",
+            "My phone started ringing with an unknown number, and a voice whispered..."
+        ];
+
+        const SAMPLE_WORDS = [
+            "Dragon", "Police", "Spicy", "Toilet", "Millionaire", "Ghost",
+            "Airport", "Banana", "Teacher", "Helicopter", "Secret", "Wedding",
+            "Alien", "Chocolate", "Bicycle", "Karaoke", "Hospital", "Diamond"
+        ];
+
+        const AVATAR_COLORS = [
+            "bg-rose-500", "bg-sky-500", "bg-emerald-500", "bg-amber-500",
+            "bg-indigo-500", "bg-purple-500", "bg-teal-500", "bg-orange-500"
+        ];
+
+        // ==================== GLOBAL STATE ====================
+        let client = null;
+        let role = null; // 'host' | 'student'
+        let roomCode = "";
+        let myId = "u_" + Math.random().toString(36).substring(2, 9);
+        let myName = "";
+        let myColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+        let isMuted = false;
+        let heartbeatTimer = null;
+
+        // Host State
+        let students = {}; // { id: { id, name, color, cardsLeft, spokenCount, lastSeen } }
+        let deckMode = "numbers"; // 'numbers' | 'alphabet' | 'words'
+        let activeSpeakerId = null;
+
+        // Student State
+        let myHand = []; // [{ id, value, subLabel, colorIdx, flipped, used }]
+        let currentDeckMode = "numbers";
+        let isMyGreenLight = false;
+
+        // ==================== SOUND ENGINE ====================
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type = 'sine', duration = 0.2, vol = 0.25, delay = 0) {
+                if (isMuted) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + delay);
+                    osc.stop(this.ctx.currentTime + delay + duration);
+                } catch (e) {}
+            },
+            playCardFlip() {
+                this.playTone(520, 'triangle', 0.09, 0.22, 0);
+                this.playTone(780, 'sine', 0.14, 0.22, 0.05);
+            },
+            playDeal() {
+                [0, 0.08, 0.16].forEach((d, i) => {
+                    this.playTone(440 + i * 110, 'triangle', 0.12, 0.2, d);
+                });
+            },
+            playGreenLight() {
+                this.playTone(587.33, 'sine', 0.16, 0.3, 0);
+                this.playTone(880.00, 'sine', 0.25, 0.32, 0.1);
+                this.playTone(1174.66, 'triangle', 0.35, 0.3, 0.2);
+            },
+            playRedLight() {
+                this.playTone(320, 'sine', 0.18, 0.16, 0);
+            }
+        };
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            document.getElementById('muteIcon').textContent = isMuted ? '🔇' : '🔊';
+            showToast(isMuted ? 'Sound muted' : 'Sound enabled');
+        }
+
+        // ==================== UI HELPERS ====================
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('opacity-0', '-translate-y-2');
+            clearTimeout(window._toastTimeout);
+            window._toastTimeout = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+            }, 2600);
+        }
+
+        function openModal(title, body, onConfirm) {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = body;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            document.getElementById('modalCancel').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+            document.getElementById('modalConfirm').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        function setConnStatus(status) {
+            const dot = document.getElementById('connDot');
+            const txt = document.getElementById('connText');
+            if (status === 'connected') {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+                txt.textContent = `Live • Room ${roomCode}`;
+            } else if (status === 'connecting') {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                txt.textContent = "Connecting...";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-rose-500";
+                txt.textContent = "Reconnecting...";
+            }
+        }
+
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const urlRoom = params.get('room');
+            if (urlRoom && /^\d{4}$/.test(urlRoom)) {
+                document.getElementById('roomCodeInput').value = urlRoom;
+                showToast(`Room ${urlRoom} pre-filled!`);
+            }
+        };
+
+        // ==================== MQTT REAL-TIME NETWORKING ====================
+        function connectMQTT(onReady) {
+            setConnStatus('connecting');
+            const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+            const clientId = 'uno_story_' + myId + '_' + Math.floor(Math.random() * 1000);
+
+            client = mqtt.connect(brokerUrl, {
+                clientId: clientId,
+                clean: true,
+                connectTimeout: 8000,
+                reconnectPeriod: 2000
+            });
+
+            client.on('connect', () => {
+                setConnStatus('connected');
+                const topic = `bbc_uno_storyteller/room/${roomCode}/#`;
+                client.subscribe(topic, { qos: 1 }, (err) => {
+                    if (!err && onReady) onReady();
+                });
+            });
+
+            client.on('reconnect', () => setConnStatus('connecting'));
+            client.on('offline', () => setConnStatus('offline'));
+            client.on('error', () => setConnStatus('offline'));
+
+            client.on('message', (topic, message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    handleIncomingMessage(topic, data);
+                } catch (e) {}
+            });
+        }
+
+        function publishEvent(subtopic, payload) {
+            if (!client || !client.connected) return;
+            const topic = `bbc_uno_storyteller/room/${roomCode}/${subtopic}`;
+            client.publish(topic, JSON.stringify(payload), { qos: 1 });
+        }
+
+        // ==================== ENTRY & EXIT ====================
+        function startAsHost() {
+            AudioEngine.init();
+            role = 'host';
+            roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('hostRoomCode').textContent = roomCode;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('hostScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                showToast(`Room ${roomCode} created! Share link with students.`);
+                heartbeatTimer = setInterval(() => {
+                    pruneInactiveStudents();
+                }, 5000);
+            });
+        }
+
+        function joinAsStudent() {
+            AudioEngine.init();
+            const nameVal = document.getElementById('studentNameInput').value.trim();
+            const codeVal = document.getElementById('roomCodeInput').value.trim();
+
+            if (!nameVal) return showToast("Enter your nickname first!");
+            if (!/^\d{4}$/.test(codeVal)) return showToast("Enter a valid 4-digit Room Code!");
+
+            role = 'student';
+            myName = nameVal;
+            roomCode = codeVal;
+
+            document.getElementById('studentDisplayName').textContent = myName;
+            document.getElementById('studentRoomBadge').textContent = roomCode;
+            const avatar = document.getElementById('studentAvatar');
+            avatar.textContent = myName.charAt(0).toUpperCase();
+            avatar.className = `w-10 h-10 rounded-xl ${myColor} flex items-center justify-center font-bold text-white text-lg shadow-sm`;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('studentScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                sendStudentPresence();
+                heartbeatTimer = setInterval(sendStudentPresence, 4000);
+                AudioEngine.playCardFlip();
+            });
+        }
+
+        function sendStudentPresence() {
+            const remaining = myHand.filter(c => !c.used).length;
+            publishEvent('presence', {
+                id: myId,
+                name: myName,
+                color: myColor,
+                cardsLeft: remaining,
+                ts: Date.now()
+            });
+        }
+
+        function confirmLeave() {
+            openModal("Leave UNO Storyteller?", "Disconnect from this game room?", () => {
+                clearInterval(heartbeatTimer);
+                if (role === 'student') publishEvent('leave', { id: myId });
+                if (client) client.end();
+                location.href = window.location.pathname;
+            });
+        }
+
+        function copyShareLink() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            const tempInput = document.createElement('input');
+            tempInput.value = url;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast("Invite link copied! Paste in WhatsApp group.");
+        }
+
+        // ==================== HOST CARD DEALING LOGIC ====================
+        function selectDeckMode(mode) {
+            deckMode = mode;
+            ['numbers', 'alphabet', 'words'].forEach(m => {
+                const btn = document.getElementById(`deckBtn-${m}`);
+                if (m === mode) {
+                    btn.className = "p-3 rounded-2xl border-2 border-rose-500 bg-rose-50 text-rose-950 text-left transition shadow-sm";
+                } else {
+                    btn.className = "p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 text-left transition";
+                }
+            });
+
+            if (mode === 'words') {
+                document.getElementById('customWordsBox').classList.remove('hidden');
+                document.getElementById('standardOptionsBox').classList.add('hidden');
+            } else {
+                document.getElementById('customWordsBox').classList.add('hidden');
+                document.getElementById('standardOptionsBox').classList.remove('hidden');
+            }
+        }
+
+        function fillSampleWords() {
+            document.getElementById('customWordPoolInput').value = SAMPLE_WORDS.join(', ');
+            showToast("Sample fun words loaded!");
+        }
+
+        function pickRandomStarter() {
+            const random = STORY_STARTERS[Math.floor(Math.random() * STORY_STARTERS.length)];
+            document.getElementById('storyStarterInput').value = random;
+        }
+
+        function dealCardsToAll() {
+            const list = Object.values(students);
+            if (list.length === 0) return showToast("Need at least 1 connected student!");
+
+            const count = parseInt(document.getElementById('cardsPerPlayerSelect').value || '3', 10);
+            const includeSpecial = document.getElementById('includeSpecialCheck').checked;
+            const starter = document.getElementById('storyStarterInput').value.trim();
+
+            let wordPool = [];
+            if (deckMode === 'words') {
+                const raw = document.getElementById('customWordPoolInput').value.trim();
+                wordPool = raw.split(',').map(w => w.trim()).filter(Boolean);
+                if (wordPool.length === 0) {
+                    return showToast("Enter at least 1 word or click '+ Fill Fun Words'!");
+                }
+            }
+
+            // Build deck generator
+            const handsMap = {};
+            let shuffledWords = [...wordPool].sort(() => Math.random() - 0.5);
+            let wordCursor = 0;
+
+            list.forEach(s => {
+                const cards = [];
+                for (let i = 0; i < count; i++) {
+                    const colorIdx = Math.floor(Math.random() * UNO_COLORS.length);
+                    let value = "";
+                    let subLabel = "";
+
+                    if (deckMode === 'words') {
+                        if (wordCursor >= shuffledWords.length) {
+                            shuffledWords = [...wordPool].sort(() => Math.random() - 0.5);
+                            wordCursor = 0;
+                        }
+                        value = shuffledWords[wordCursor++];
+                        subLabel = "SECRET WORD";
+                    } else if (deckMode === 'numbers') {
+                        if (includeSpecial && Math.random() < 0.2) {
+                            const specials = ["SKIP", "REVERSE"];
+                            value = specials[Math.floor(Math.random() * specials.length)];
+                            subLabel = value === "SKIP" ? "Pass turn!" : "Reverse order!";
+                        } else {
+                            const num = Math.floor(Math.random() * 10); // 0 - 9
+                            value = String(num);
+                            subLabel = num === 0 ? "Any short sentence" : `Min ${num} words / #${num}`;
+                        }
+                    } else if (deckMode === 'alphabet') {
+                        if (includeSpecial && Math.random() < 0.2) {
+                            const specials = ["SKIP", "REVERSE"];
+                            value = specials[Math.floor(Math.random() * specials.length)];
+                            subLabel = value === "SKIP" ? "Pass turn!" : "Reverse order!";
+                        } else {
+                            const alphabet = "ABCDEFGHIJKLMNOPRSTUVWY";
+                            const letter = alphabet[Math.floor(Math.random() * alphabet.length)];
+                            value = letter;
+                            subLabel = `Starts with "${letter}"`;
+                        }
+                    }
+
+                    cards.push({
+                        id: `c_${s.id}_${i}_${Date.now()}`,
+                        value,
+                        subLabel,
+                        colorIdx,
+                        flipped: false,
+                        used: false
+                    });
+                }
+                handsMap[s.id] = cards;
+                students[s.id].cardsLeft = count;
+            });
+
+            activeSpeakerId = null;
+            updateHostTurnUI();
+            renderHostPlayerGrid();
+
+            publishEvent('deal_cards', {
+                mode: deckMode,
+                starter: starter,
+                hands: handsMap,
+                ts: Date.now()
+            });
+
+            AudioEngine.playDeal();
+            showToast(`Dealt ${count} face-down card(s) to every student!`);
+        }
+
+        // ==================== TRAFFIC LIGHT TURN CONTROLLER ====================
+        function setGreenLightFor(studentId) {
+            const target = students[studentId];
+            if (!target) return;
+            activeSpeakerId = studentId;
+            target.spokenCount = (target.spokenCount || 0) + 1;
+
+            updateHostTurnUI();
+            renderHostPlayerGrid();
+
+            publishEvent('turn_signal', {
+                speakerId: target.id,
+                speakerName: target.name,
+                ts: Date.now()
+            });
+
+            AudioEngine.playGreenLight();
+            showToast(`🟢 Green Light ON for ${target.name}!`);
+        }
+
+        function pickRandomNextSpeaker() {
+            const list = Object.values(students);
+            if (list.length === 0) return showToast("No students connected!");
+
+            // Prefer students who still have cards left AND haven't spoken as much
+            const withCards = list.filter(s => (s.cardsLeft || 0) > 0 && s.id !== activeSpeakerId);
+            const pool = withCards.length > 0 ? withCards : list.filter(s => s.id !== activeSpeakerId);
+            const finalPool = pool.length > 0 ? pool : list;
+
+            // Sort by fewest spokenCount to give everyone fair turns
+            finalPool.sort((a, b) => (a.spokenCount || 0) - (b.spokenCount || 0));
+            const minSpoken = finalPool[0].spokenCount || 0;
+            const leastSpokenGroup = finalPool.filter(s => (s.spokenCount || 0) === minSpoken);
+
+            const chosen = leastSpokenGroup[Math.floor(Math.random() * leastSpokenGroup.length)];
+            setGreenLightFor(chosen.id);
+        }
+
+        function setAllRedLight() {
+            activeSpeakerId = null;
+            updateHostTurnUI();
+            renderHostPlayerGrid();
+            publishEvent('turn_signal', {
+                speakerId: null,
+                speakerName: null,
+                ts: Date.now()
+            });
+            AudioEngine.playRedLight();
+            showToast("🔴 All lights set to Red.");
+        }
+
+        function resetEntireGame() {
+            activeSpeakerId = null;
+            Object.values(students).forEach(s => {
+                s.cardsLeft = 0;
+                s.spokenCount = 0;
+            });
+            updateHostTurnUI();
+            renderHostPlayerGrid();
+            publishEvent('reset_game', { ts: Date.now() });
+            showToast("Game reset!");
+        }
+
+        function updateHostTurnUI() {
+            const dot = document.getElementById('hostActiveLightDot');
+            const nameEl = document.getElementById('hostCurrentSpeakerName');
+            const box = document.getElementById('hostTurnMonitor');
+
+            if (activeSpeakerId && students[activeSpeakerId]) {
+                dot.className = "w-4 h-4 rounded-full bg-emerald-500 animate-ping";
+                nameEl.textContent = `🟢 ${students[activeSpeakerId].name} is Speaking!`;
+                box.className = "bg-emerald-50 border-2 border-emerald-400 rounded-2xl p-4 flex items-center justify-between transition-all";
+            } else {
+                dot.className = "w-4 h-4 rounded-full bg-rose-500";
+                nameEl.textContent = "All Red (Paused / Waiting)";
+                box.className = "bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between transition-all";
+            }
+        }
+
+        // ==================== STUDENT CARD FLIP & TURN COMPLETION ====================
+        function flipStudentCard(cardId) {
+            const card = myHand.find(c => c.id === cardId);
+            if (!card || card.flipped) return;
+            AudioEngine.init();
+            card.flipped = true;
+            AudioEngine.playCardFlip();
+            if (navigator.vibrate) navigator.vibrate(90);
+            renderStudentHand();
+        }
+
+        function markCardUsed(cardId) {
+            const card = myHand.find(c => c.id === cardId);
+            if (!card || card.used) return;
+            card.used = true;
+            AudioEngine.playCardFlip();
+            renderStudentHand();
+            sendStudentPresence();
+            publishEvent('card_played', {
+                studentId: myId,
+                studentName: myName,
+                cardValue: card.value,
+                cardsLeft: myHand.filter(c => !c.used).length
+            });
+        }
+
+        function studentFinishTurn() {
+            if (!isMyGreenLight) return;
+            AudioEngine.playRedLight();
+            publishEvent('student_done', {
+                studentId: myId,
+                studentName: myName,
+                ts: Date.now()
+            });
+        }
+
+        // ==================== INCOMING MQTT HANDLER ====================
+        function handleIncomingMessage(topic, data) {
+            const sub = topic.split('/').pop();
+
+            if (role === 'host') {
+                if (sub === 'presence') {
+                    const existing = students[data.id];
+                    students[data.id] = {
+                        id: data.id,
+                        name: data.name,
+                        color: data.color || 'bg-rose-500',
+                        cardsLeft: typeof data.cardsLeft === 'number' ? data.cardsLeft : (existing ? existing.cardsLeft : 0),
+                        spokenCount: existing ? existing.spokenCount : 0,
+                        lastSeen: Date.now()
+                    };
+                    if (!existing) {
+                        AudioEngine.playCardFlip();
+                        showToast(`${data.name} joined!`);
+                    }
+                    renderHostPlayerGrid();
+                } else if (sub === 'leave') {
+                    delete students[data.id];
+                    renderHostPlayerGrid();
+                } else if (sub === 'card_played') {
+                    if (students[data.studentId]) {
+                        students[data.studentId].cardsLeft = data.cardsLeft;
+                        renderHostPlayerGrid();
+                    }
+                    showToast(`🃏 ${data.studentName} used card: "${data.cardValue}"`);
+                } else if (sub === 'student_done') {
+                    showToast(`✅ ${data.studentName} finished! Passing green light...`);
+                    pickRandomNextSpeaker();
+                }
+            } else if (role === 'student') {
+                if (sub === 'deal_cards') {
+                    currentDeckMode = data.mode;
+                    myHand = (data.hands && data.hands[myId]) ? data.hands[myId] : [];
+                    isMyGreenLight = false;
+                    AudioEngine.playDeal();
+
+                    // Story starter
+                    const starterBox = document.getElementById('studentStoryStarterBox');
+                    if (data.starter) {
+                        starterBox.classList.remove('hidden');
+                        document.getElementById('studentStoryStarterText').textContent = `"${data.starter}"`;
+                    } else {
+                        starterBox.classList.add('hidden');
+                    }
+
+                    // Rule helper
+                    const ruleBox = document.getElementById('studentRuleBanner');
+                    ruleBox.classList.remove('hidden');
+                    if (data.mode === 'words') {
+                        ruleBox.innerHTML = `💡 <b>Tap any face-down card</b> to flip it, then continue the story using that word!`;
+                    } else if (data.mode === 'numbers') {
+                        ruleBox.innerHTML = `💡 <b>Flip a card!</b> Use the number in your sentence (or speak at least that many words).`;
+                    } else {
+                        ruleBox.innerHTML = `💡 <b>Flip a card!</b> Start your next story sentence with that alphabet letter.`;
+                    }
+
+                    updateStudentTrafficLight(null, null);
+                    renderStudentHand();
+                } else if (sub === 'turn_signal') {
+                    updateStudentTrafficLight(data.speakerId, data.speakerName);
+                } else if (sub === 'reset_game') {
+                    myHand = [];
+                    isMyGreenLight = false;
+                    document.getElementById('studentStoryStarterBox').classList.add('hidden');
+                    document.getElementById('studentRuleBanner').classList.add('hidden');
+                    updateStudentTrafficLight(null, null);
+                    renderStudentHand();
+                }
+            }
+        }
+
+        function updateStudentTrafficLight(speakerId, speakerName) {
+            const box = document.getElementById('trafficLightBox');
+            const redDot = document.getElementById('lightRed');
+            const greenDot = document.getElementById('lightGreen');
+            const badge = document.getElementById('turnStatusBadge');
+            const title = document.getElementById('turnStatusTitle');
+            const sub = document.getElementById('turnStatusSub');
+            const doneBtn = document.getElementById('studentDoneBtn');
+
+            if (speakerId === myId) {
+                isMyGreenLight = true;
+                AudioEngine.playGreenLight();
+                if (navigator.vibrate) navigator.vibrate([250, 80, 250]);
+
+                box.className = "bg-emerald-50 border-2 border-emerald-500 rounded-3xl p-4 shadow-lg animate-green-glow transition-all";
+                redDot.className = "w-4 h-4 rounded-full bg-rose-950";
+                greenDot.className = "w-4 h-4 rounded-full bg-emerald-400 shadow-[0_0_12px_#34d399]";
+                badge.className = "inline-block px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-extrabold uppercase tracking-wider mb-0.5";
+                badge.textContent = "🟢 Green Light • Your Turn!";
+                title.textContent = "Speak & Continue the Story!";
+                sub.textContent = "Flip a card below, say your sentence, then tap Done.";
+                doneBtn.classList.remove('hidden');
+            } else {
+                isMyGreenLight = false;
+                box.className = "bg-white border-2 border-rose-200 rounded-3xl p-4 shadow-sm transition-all";
+                redDot.className = "w-4 h-4 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e]";
+                greenDot.className = "w-4 h-4 rounded-full bg-emerald-950";
+                badge.className = "inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[11px] font-extrabold uppercase tracking-wider mb-0.5";
+                badge.textContent = "🔴 Red Light • Listen";
+                doneBtn.classList.add('hidden');
+
+                if (speakerName) {
+                    title.textContent = `${speakerName} is Speaking...`;
+                    sub.textContent = "Listen carefully so you can continue the story next!";
+                } else {
+                    title.textContent = "Waiting for Next Turn...";
+                    sub.textContent = "You can peek at your cards while waiting.";
+                }
+            }
+        }
+
+        function renderStudentHand() {
+            const container = document.getElementById('studentCardsContainer');
+            const remaining = myHand.filter(c => !c.used).length;
+            document.getElementById('studentCardsLeft').textContent = remaining;
+
+            if (myHand.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white/80 border border-slate-200 rounded-3xl p-8 text-center shadow-sm">
+                        <div class="text-4xl mb-3">🃏</div>
+                        <h3 class="font-game text-lg font-bold text-slate-800 mb-1">No Cards Dealt Yet</h3>
+                        <p class="text-xs text-slate-500">Wait for your teacher to deal UNO cards to everyone's screen!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-2 gap-3">
+                    ${myHand.map((card, idx) => {
+                        const colorObj = UNO_COLORS[card.colorIdx % UNO_COLORS.length];
+
+                        // Face-Down Card
+                        if (!card.flipped) {
+                            return `
+                                <button onclick="flipStudentCard('${card.id}')"
+                                    class="uno-card-shadow h-44 rounded-3xl bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 text-center transition active:scale-95 relative overflow-hidden">
+                                    <div class="w-24 h-32 rounded-[100%] border-4 border-rose-500/80 -rotate-12 flex items-center justify-center bg-rose-600/20">
+                                        <span class="font-game text-2xl font-extrabold text-amber-400 rotate-12 tracking-wider">UNO</span>
+                                    </div>
+                                    <span class="mt-2 text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                        👆 Tap to Flip #${idx + 1}
+                                    </span>
+                                </button>
+                            `;
+                        }
+
+                        // Flipped Card (Used vs Active)
+                        const isLongWord = card.value.length > 6;
+                        return `
+                            <div class="animate-flip uno-card-shadow h-44 rounded-3xl bg-gradient-to-br ${colorObj.bg} p-3.5 flex flex-col justify-between text-white relative ${card.used ? 'opacity-45 grayscale' : ''}">
+                                <div class="flex items-center justify-between text-xs font-extrabold">
+                                    <span class="px-2 py-0.5 rounded-full bg-black/20">${colorObj.name}</span>
+                                    <span>#${idx + 1}</span>
+                                </div>
+
+                                <div class="my-auto text-center px-1">
+                                    <div class="font-game ${isLongWord ? 'text-xl' : 'text-4xl'} font-extrabold drop-shadow break-words leading-tight">
+                                        ${escapeHtml(card.value)}
+                                    </div>
+                                    <div class="text-[10px] font-bold uppercase tracking-wider text-white/90 mt-1">
+                                        ${escapeHtml(card.subLabel)}
+                                    </div>
+                                </div>
+
+                                ${card.used
+                                    ? `<div class="text-center text-[11px] font-extrabold bg-black/30 rounded-xl py-1">✓ USED IN STORY</div>`
+                                    : `<button onclick="markCardUsed('${card.id}')" class="w-full py-1.5 rounded-xl bg-white/95 hover:bg-white text-slate-900 font-extrabold text-[11px] shadow transition active:scale-95">
+                                        Use Card ✓
+                                       </button>`
+                                }
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // ==================== HOST PLAYER ROSTER ====================
+        function pruneInactiveStudents() {
+            const now = Date.now();
+            let changed = false;
+            Object.keys(students).forEach(id => {
+                if (now - students[id].lastSeen > 22000) {
+                    delete students[id];
+                    changed = true;
+                }
+            });
+            if (changed) renderHostPlayerGrid();
+        }
+
+        function renderHostPlayerGrid() {
+            const list = Object.values(students);
+            document.getElementById('studentCount').textContent = list.length;
+            const container = document.getElementById('hostPlayerGrid');
+
+            if (list.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 italic py-3 col-span-full text-center">Waiting for students to join...</p>`;
+                return;
+            }
+
+            container.innerHTML = list.map(s => {
+                const isSpeaking = activeSpeakerId === s.id;
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-2xl border transition ${isSpeaking ? 'bg-emerald-50 border-emerald-400 shadow-sm' : 'bg-slate-50 border-slate-200'}">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-8 h-8 rounded-xl ${s.color} flex items-center justify-center font-bold text-white text-sm shrink-0">
+                                ${escapeHtml(s.name.charAt(0).toUpperCase())}
+                            </div>
+                            <div class="truncate">
+                                <div class="font-bold text-slate-900 text-sm truncate">${escapeHtml(s.name)}</div>
+                                <div class="text-[11px] text-slate-500">
+                                    Cards: <b>${s.cardsLeft || 0}</b> • Turns: <b>${s.spokenCount || 0}</b>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="setGreenLightFor('${s.id}')"
+                            class="px-3 py-2 rounded-xl text-xs font-extrabold transition active:scale-95 shrink-0 ${isSpeaking ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-300 hover:border-emerald-500 text-slate-700'}">
+                            ${isSpeaking ? '🟢 Speaking' : '🟢 Turn'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+    </script>
+</body>
+</html>
