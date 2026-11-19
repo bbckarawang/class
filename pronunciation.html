@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pronunciation Arena</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MQTT.js over WebSockets -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .font-game {
+            font-family: 'Fredoka', sans-serif;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulseRing {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.45); }
+            70% { box-shadow: 0 0 0 22px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
+        .animate-pop {
+            animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-pulse-ring {
+            animation: pulseRing 1.6s infinite;
+        }
+        .bell-btn {
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+            box-shadow: 0 10px 0 #3730a3, 0 16px 24px rgba(79, 70, 229, 0.28);
+        }
+        .bell-btn:active:not(:disabled) {
+            transform: translateY(6px);
+            box-shadow: 0 4px 0 #3730a3, 0 8px 14px rgba(79, 70, 229, 0.28);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-sky-50 via-indigo-50/60 to-amber-50/50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-sky-500 flex items-center justify-center font-game font-bold text-white text-xl shadow-md shadow-indigo-500/20">
+                🗣️
+            </div>
+            <div>
+                <h1 class="font-game font-bold text-base sm:text-lg leading-tight text-slate-900">Pronunciation Arena</h1>
+                <div class="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                    <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="connText">Ready to connect</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="muteBtn" onclick="toggleMute()" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition active:scale-95" title="Toggle Sound">
+                <span id="muteIcon">🔊</span>
+            </button>
+            <button id="leaveBtn" onclick="confirmLeave()" class="hidden px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition active:scale-95">
+                Exit
+            </button>
+        </div>
+    </header>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+        <div id="toastMsg" class="bg-slate-900 text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-xl"></div>
+    </div>
+
+    <!-- Custom Modal -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-pop">
+            <h3 id="modalTitle" class="font-game text-xl font-bold text-slate-900 mb-2">Confirm</h3>
+            <p id="modalBody" class="text-slate-600 text-sm mb-6 leading-relaxed"></p>
+            <div class="flex gap-3 justify-end">
+                <button id="modalCancel" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition">Cancel</button>
+                <button id="modalConfirm" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 1. LANDING SCREEN ==================== -->
+    <main id="landingScreen" class="flex-1 flex flex-col items-center justify-center p-4 max-w-md mx-auto w-full">
+        <div class="text-center mb-7">
+            <span class="inline-block px-3.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-extrabold tracking-wider uppercase mb-3">
+                Interactive Speaking Challenge
+            </span>
+            <h2 class="font-game text-3xl sm:text-4xl font-bold text-slate-900 mb-2">Pronunciation Arena</h2>
+            <p class="text-slate-500 text-sm">Say the word right, climb the live leaderboard, and win the round!</p>
+        </div>
+
+        <div class="w-full space-y-4">
+            <!-- Student Join Card -->
+            <div class="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xl shadow-slate-200/50">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-2xl">
+                        🎙️
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold text-slate-900">Join as Student</h3>
+                        <p class="text-xs text-slate-500">Enter your nickname & 4-digit room code</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="studentNameInput" maxlength="16" placeholder="Your Nickname (e.g., Andi)"
+                        class="w-full bg-slate-50 border border-slate-300 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3.5 text-slate-900 placeholder-slate-400 text-base font-medium outline-none transition">
+                    <div class="flex gap-2">
+                        <input type="tel" id="roomCodeInput" maxlength="4" placeholder="Room Code"
+                            class="w-full bg-slate-50 border border-slate-300 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3.5 text-slate-900 placeholder-slate-400 text-center font-mono text-lg font-bold tracking-widest uppercase outline-none transition">
+                        <button onclick="joinAsStudent()"
+                            class="px-6 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-base shadow-lg shadow-indigo-600/25 transition whitespace-nowrap">
+                            Join
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-slate-200"></div>
+                <span class="flex-shrink mx-4 text-slate-400 text-xs uppercase font-bold">Or Game Master</span>
+                <div class="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            <!-- Host Card -->
+            <button onclick="startAsHost()"
+                class="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 active:scale-[0.98] text-slate-950 rounded-3xl p-5 shadow-xl shadow-amber-500/20 transition flex items-center justify-between text-left">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-12 h-12 rounded-2xl bg-white/40 flex items-center justify-center text-2xl">
+                        👑
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold text-slate-950">Game Master (Teacher)</h3>
+                        <p class="text-xs text-slate-900 font-semibold">Broadcast words, pick speakers & manage live scores</p>
+                    </div>
+                </div>
+                <span class="text-xl font-extrabold">→</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- ==================== 2. STUDENT ARENA SCREEN ==================== -->
+    <section id="studentScreen" class="hidden flex-1 flex flex-col max-w-md mx-auto w-full p-4 pb-10 space-y-4">
+        
+        <!-- Profile & My Score Bar -->
+        <div class="bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-3">
+                <div id="studentAvatar" class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white text-lg shadow-sm">
+                    S
+                </div>
+                <div>
+                    <div id="studentDisplayName" class="font-bold text-slate-900 text-sm">Student</div>
+                    <div class="text-xs text-slate-500 font-medium">Room: <span id="studentRoomBadge" class="font-mono font-bold text-indigo-600">----</span></div>
+                </div>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-xl text-right">
+                <span class="text-[10px] uppercase tracking-wider text-amber-700 block font-extrabold">My Score</span>
+                <span id="studentMyScore" class="font-game text-xl font-bold text-amber-600">0</span>
+            </div>
+        </div>
+
+        <!-- Target Word Stage Card -->
+        <div id="studentWordCard" class="bg-white border-2 border-indigo-100 rounded-3xl p-6 text-center shadow-lg shadow-indigo-100/60">
+            <span id="studentModeTag" class="inline-block px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold uppercase tracking-wider mb-3">
+                Waiting for Word
+            </span>
+            <div id="studentTargetWord" class="font-game text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-wide my-2 break-words">
+                Ready...
+            </div>
+            <p id="studentWordHint" class="text-xs text-slate-500 mt-2">
+                Your teacher will send an English word here shortly!
+            </p>
+        </div>
+
+        <!-- Student Interactive Turn / Bell Area -->
+        <div id="studentActionArea" class="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center text-center shadow-sm min-h-[210px]">
+            <div class="text-4xl mb-2">🎧</div>
+            <p class="text-sm font-semibold text-slate-600">Get your voice ready!</p>
+            <p class="text-xs text-slate-400 mt-1">When a word appears, follow the mode on screen.</p>
+        </div>
+
+        <!-- Live Leaderboard (Visible to All Students) -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm">
+            <div class="flex items-center justify-between mb-2.5 px-1">
+                <h3 class="font-game text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    🏆 Live Leaderboard
+                </h3>
+                <span class="text-[11px] font-semibold text-slate-400">Real-time</span>
+            </div>
+            <div id="studentLeaderboardList" class="space-y-1.5 max-h-48 overflow-y-auto">
+                <p class="text-xs text-slate-400 italic text-center py-2">Waiting for players...</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 3. GAME MASTER (HOST) SCREEN ==================== -->
+    <section id="hostScreen" class="hidden flex-1 flex flex-col max-w-3xl mx-auto w-full p-4 pb-20 space-y-4">
+        
+        <!-- Room Header -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <span class="text-xs uppercase tracking-wider text-slate-400 font-bold block">Room Code</span>
+                <div class="flex items-center gap-2">
+                    <span id="hostRoomCode" class="font-mono text-3xl font-extrabold text-indigo-600 tracking-widest">0000</span>
+                    <button onclick="copyShareLink()" class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition active:scale-95">
+                        🔗 Copy Invite Link
+                    </button>
+                </div>
+            </div>
+            <button onclick="clearWordStage()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition active:scale-95">
+                🔄 Clear Word
+            </button>
+        </div>
+
+        <!-- Step 1: Word Broadcaster & Pronunciation Audio Helper -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">1. Type English Word & Mode</label>
+                <button onclick="speakCurrentWord()" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold transition active:scale-95" title="Hear native pronunciation">
+                    🔊 Hear Pronunciation
+                </button>
+            </div>
+
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="wordInput" placeholder="e.g., Schedule, Vegetable, Colonel..."
+                    class="flex-1 bg-slate-50 border-2 border-slate-200 focus:border-indigo-500 focus:bg-white rounded-2xl px-4 py-3 text-lg font-bold text-slate-900 placeholder-slate-400 outline-none transition">
+            </div>
+
+            <!-- 3 Turn Modes Selector -->
+            <label class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">2. Choose Turn Mode</label>
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <button onclick="selectGameMode('buzzer')" id="modeBtn-buzzer"
+                    class="p-3 rounded-2xl border-2 border-indigo-600 bg-indigo-50 text-indigo-900 text-left transition">
+                    <div class="text-lg mb-0.5">🔔</div>
+                    <div class="font-game font-bold text-xs sm:text-sm">1. Bell Queue</div>
+                    <div class="text-[10px] text-indigo-700 leading-tight mt-0.5">Students buzz, GM picks speaker</div>
+                </button>
+
+                <button onclick="selectGameMode('manual')" id="modeBtn-manual"
+                    class="p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 text-left transition">
+                    <div class="text-lg mb-0.5">👆</div>
+                    <div class="font-game font-bold text-xs sm:text-sm">2. Manual Pick</div>
+                    <div class="text-[10px] text-slate-500 leading-tight mt-0.5">GM chooses 1 student directly</div>
+                </button>
+
+                <button onclick="selectGameMode('random')" id="modeBtn-random"
+                    class="p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 text-left transition">
+                    <div class="text-lg mb-0.5">🎲</div>
+                    <div class="font-game font-bold text-xs sm:text-sm">3. Random</div>
+                    <div class="text-[10px] text-slate-500 leading-tight mt-0.5">System picks 1 random bell</div>
+                </button>
+            </div>
+
+            <!-- Manual Pick Student Selector (Only shown when Mode 2 is active) -->
+            <div id="manualPickDrawer" class="hidden bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 mb-4">
+                <p class="text-xs font-bold text-amber-900 mb-2">Tap the student who will pronounce this word:</p>
+                <div id="manualStudentChips" class="flex flex-wrap gap-2">
+                    <span class="text-xs text-slate-500 italic">No students connected yet.</span>
+                </div>
+            </div>
+
+            <button onclick="broadcastWordRound()"
+                class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 active:scale-[0.99] text-white font-extrabold text-sm sm:text-base shadow-lg shadow-indigo-600/25 transition">
+                🚀 Broadcast Word to All Phones
+            </button>
+        </div>
+
+        <!-- Active Round Control Panel (Buzzer Queue / Active Speaker) -->
+        <div id="activeRoundPanel" class="hidden bg-white border-2 border-indigo-200 rounded-3xl p-5 shadow-md animate-pop">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-100">
+                <div>
+                    <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600">Current Word</span>
+                    <h3 id="hostActiveWordDisplay" class="font-game text-2xl font-extrabold text-slate-900">WORD</h3>
+                </div>
+                <div id="activeSpeakerBadge" class="hidden px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                    🎤 Speaker: <span id="activeSpeakerName" class="font-extrabold">Name</span>
+                </div>
+            </div>
+
+            <!-- Buzzer Queue List (For Mode 1) -->
+            <div id="buzzerQueueSection" class="hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-600">🔔 Students Who Pressed the Bell (Tap to Pick):</span>
+                    <button onclick="resetRoundBells()" class="text-xs text-indigo-600 hover:underline font-bold">Reset Bells</button>
+                </div>
+                <div id="buzzerQueueList" class="flex flex-wrap gap-2 min-h-[42px] bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <span class="text-xs text-slate-400 italic">Waiting for students to press their bell...</span>
+                </div>
+            </div>
+
+            <!-- Quick Award Point Bar for Current Speaker -->
+            <div id="quickGradeBar" class="hidden mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-bold text-slate-600">Pronunciation Result for <b id="gradeTargetName" class="text-slate-900">Student</b>:</span>
+                <div class="flex gap-2">
+                    <button onclick="rewardCurrentSpeaker(1)" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white font-extrabold text-xs shadow transition">
+                        ✅ Correct (+1 Pt)
+                    </button>
+                    <button onclick="rewardCurrentSpeaker(2)" class="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-extrabold text-xs shadow transition">
+                        🌟 Perfect (+2 Pts)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Players & Live Scoreboard -->
+        <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-game text-base font-bold text-slate-900">
+                    🏆 Players & Live Leaderboard (<span id="studentCount" class="text-indigo-600">0</span>)
+                </h3>
+                <button onclick="resetAllScores()" class="text-xs text-slate-400 hover:text-rose-600 font-semibold underline">
+                    Reset All Scores
+                </button>
+            </div>
+
+            <div id="hostScoreboardList" class="space-y-2">
+                <p class="text-xs text-slate-400 italic py-4 text-center">Waiting for students to join with the 4-digit room code...</p>
+            </div>
+        </div>
+
+    </section>
+
+    <script>
+        // ==================== GLOBAL STATE ====================
+        let client = null;
+        let role = null; // 'host' | 'student'
+        let roomCode = "";
+        let myId = "u_" + Math.random().toString(36).substring(2, 9);
+        let myName = "";
+        let isMuted = false;
+        let heartbeatTimer = null;
+
+        const AVATAR_COLORS = [
+            "bg-indigo-600", "bg-sky-500", "bg-emerald-500", "bg-amber-500",
+            "bg-rose-500", "bg-purple-600", "bg-teal-500", "bg-orange-500"
+        ];
+        let myColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+
+        // Host State
+        let students = {}; // { id: { id, name, color, score, lastSeen } }
+        let selectedMode = "buzzer"; // 'buzzer' | 'manual' | 'random'
+        let selectedManualStudentId = null;
+        let currentWord = "";
+        let roundId = 0;
+        let buzzQueue = []; // [{ id, name, ts }]
+        let currentSpeakerId = null;
+
+        // Student State
+        let currentStudentRoundId = 0;
+        let hasBuzzedThisRound = false;
+
+        // ==================== AUDIO & SPEECH ENGINE ====================
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type = 'sine', duration = 0.2, vol = 0.25, delay = 0) {
+                if (isMuted) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + delay);
+                    osc.stop(this.ctx.currentTime + delay + duration);
+                } catch (e) {}
+            },
+            playBellRing() {
+                // Bright triple bell ring when selected or buzzing
+                this.playTone(880, 'sine', 0.16, 0.3, 0);
+                this.playTone(1174.66, 'sine', 0.25, 0.3, 0.09);
+                this.playTone(1318.51, 'triangle', 0.35, 0.28, 0.18);
+            },
+            playNewWord() {
+                this.playTone(523.25, 'sine', 0.15, 0.22, 0);
+                this.playTone(659.25, 'sine', 0.22, 0.22, 0.08);
+            },
+            playPointUp() {
+                this.playTone(587.33, 'triangle', 0.14, 0.25, 0);
+                this.playTone(880, 'triangle', 0.28, 0.28, 0.08);
+            }
+        };
+
+        function speakCurrentWord() {
+            const word = document.getElementById('wordInput').value.trim() || currentWord;
+            if (!word) return showToast("Type an English word first!");
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance(word);
+                utter.lang = 'en-US';
+                utter.rate = 0.88;
+                window.speechSynthesis.speak(utter);
+            } else {
+                showToast("Text-to-speech not supported on this browser.");
+            }
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            document.getElementById('muteIcon').textContent = isMuted ? '🔇' : '🔊';
+            showToast(isMuted ? 'Sound muted' : 'Sound enabled');
+        }
+
+        // ==================== UI HELPERS ====================
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('opacity-0', '-translate-y-2');
+            clearTimeout(window._toastTimeout);
+            window._toastTimeout = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+            }, 2500);
+        }
+
+        function openModal(title, body, onConfirm) {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = body;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            document.getElementById('modalCancel').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+            document.getElementById('modalConfirm').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        function setConnStatus(status) {
+            const dot = document.getElementById('connDot');
+            const txt = document.getElementById('connText');
+            if (status === 'connected') {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500";
+                txt.textContent = `Live • Room ${roomCode}`;
+            } else if (status === 'connecting') {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                txt.textContent = "Connecting...";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-rose-500";
+                txt.textContent = "Reconnecting...";
+            }
+        }
+
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const urlRoom = params.get('room');
+            if (urlRoom && /^\d{4}$/.test(urlRoom)) {
+                document.getElementById('roomCodeInput').value = urlRoom;
+                showToast(`Room ${urlRoom} pre-filled!`);
+            }
+        };
+
+        // ==================== MQTT REAL-TIME NETWORKING ====================
+        function connectMQTT(onReady) {
+            setConnStatus('connecting');
+            const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+            const clientId = 'bbc_pronounce_' + myId + '_' + Math.floor(Math.random() * 1000);
+
+            client = mqtt.connect(brokerUrl, {
+                clientId: clientId,
+                clean: true,
+                connectTimeout: 8000,
+                reconnectPeriod: 2000
+            });
+
+            client.on('connect', () => {
+                setConnStatus('connected');
+                const topic = `bbc_pronunciation_arena/room/${roomCode}/#`;
+                client.subscribe(topic, { qos: 1 }, (err) => {
+                    if (!err && onReady) onReady();
+                });
+            });
+
+            client.on('reconnect', () => setConnStatus('connecting'));
+            client.on('offline', () => setConnStatus('offline'));
+            client.on('error', () => setConnStatus('offline'));
+
+            client.on('message', (topic, message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    handleIncomingMessage(topic, data);
+                } catch (e) {}
+            });
+        }
+
+        function publishEvent(subtopic, payload) {
+            if (!client || !client.connected) return;
+            const topic = `bbc_pronunciation_arena/room/${roomCode}/${subtopic}`;
+            client.publish(topic, JSON.stringify(payload), { qos: 1 });
+        }
+
+        // ==================== ROLE ENTRY & EXIT ====================
+        function startAsHost() {
+            AudioEngine.init();
+            role = 'host';
+            roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('hostRoomCode').textContent = roomCode;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('hostScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                showToast(`Room ${roomCode} created!`);
+                heartbeatTimer = setInterval(() => {
+                    pruneInactiveStudents();
+                }, 5000);
+            });
+        }
+
+        function joinAsStudent() {
+            AudioEngine.init();
+            const nameVal = document.getElementById('studentNameInput').value.trim();
+            const codeVal = document.getElementById('roomCodeInput').value.trim();
+
+            if (!nameVal) return showToast("Please enter your nickname!");
+            if (!/^\d{4}$/.test(codeVal)) return showToast("Enter a valid 4-digit Room Code!");
+
+            role = 'student';
+            myName = nameVal;
+            roomCode = codeVal;
+
+            document.getElementById('studentDisplayName').textContent = myName;
+            document.getElementById('studentRoomBadge').textContent = roomCode;
+            const avatar = document.getElementById('studentAvatar');
+            avatar.textContent = myName.charAt(0).toUpperCase();
+            avatar.className = `w-10 h-10 rounded-xl ${myColor} flex items-center justify-center font-bold text-white text-lg shadow-sm`;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('studentScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                sendStudentPresence();
+                heartbeatTimer = setInterval(sendStudentPresence, 4000);
+                AudioEngine.playNewWord();
+            });
+        }
+
+        function sendStudentPresence() {
+            publishEvent('presence', {
+                id: myId,
+                name: myName,
+                color: myColor,
+                ts: Date.now()
+            });
+        }
+
+        function confirmLeave() {
+            openModal("Leave Pronunciation Arena?", "Disconnect from this session?", () => {
+                clearInterval(heartbeatTimer);
+                if (role === 'student') publishEvent('leave', { id: myId });
+                if (client) client.end();
+                location.href = window.location.pathname;
+            });
+        }
+
+        function copyShareLink() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            const tempInput = document.createElement('input');
+            tempInput.value = url;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast("Invite link copied! Paste in WhatsApp group.");
+        }
+
+        // ==================== HOST GAME MODES & CONTROLS ====================
+        function selectGameMode(mode) {
+            selectedMode = mode;
+            ['buzzer', 'manual', 'random'].forEach(m => {
+                const btn = document.getElementById(`modeBtn-${m}`);
+                if (m === mode) {
+                    btn.className = "p-3 rounded-2xl border-2 border-indigo-600 bg-indigo-50 text-indigo-900 text-left transition shadow-sm";
+                } else {
+                    btn.className = "p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 text-left transition";
+                }
+            });
+
+            const drawer = document.getElementById('manualPickDrawer');
+            if (mode === 'manual') {
+                drawer.classList.remove('hidden');
+                renderManualStudentChips();
+            } else {
+                drawer.classList.add('hidden');
+            }
+        }
+
+        function selectManualStudent(id) {
+            selectedManualStudentId = (selectedManualStudentId === id) ? null : id;
+            renderManualStudentChips();
+        }
+
+        function renderManualStudentChips() {
+            const container = document.getElementById('manualStudentChips');
+            const list = Object.values(students);
+            if (list.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-500 italic">No students connected yet.</span>`;
+                return;
+            }
+            container.innerHTML = list.map(s => {
+                const active = selectedManualStudentId === s.id;
+                return `
+                    <button onclick="selectManualStudent('${s.id}')"
+                        class="px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 ${active ? 'bg-amber-500 text-slate-950 border-amber-600 shadow' : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400'}">
+                        ${active ? '👆 ' : ''}${escapeHtml(s.name)}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function broadcastWordRound() {
+            const wordVal = document.getElementById('wordInput').value.trim();
+            if (!wordVal) return showToast("Type a word to broadcast first!");
+
+            const list = Object.values(students);
+            if (list.length === 0) return showToast("Need at least 1 connected student!");
+
+            let chosenSpeaker = null;
+            if (selectedMode === 'manual') {
+                if (!selectedManualStudentId || !students[selectedManualStudentId]) {
+                    return showToast("Select 1 student in the Manual Pick box first!");
+                }
+                chosenSpeaker = students[selectedManualStudentId];
+            } else if (selectedMode === 'random') {
+                chosenSpeaker = list[Math.floor(Math.random() * list.length)];
+            }
+
+            currentWord = wordVal;
+            roundId++;
+            buzzQueue = [];
+            currentSpeakerId = chosenSpeaker ? chosenSpeaker.id : null;
+
+            // Update Host Active Panel
+            document.getElementById('activeRoundPanel').classList.remove('hidden');
+            document.getElementById('hostActiveWordDisplay').textContent = currentWord;
+
+            if (selectedMode === 'buzzer') {
+                document.getElementById('buzzerQueueSection').classList.remove('hidden');
+                document.getElementById('activeSpeakerBadge').classList.add('hidden');
+                document.getElementById('quickGradeBar').classList.add('hidden');
+                renderBuzzerQueue();
+            } else {
+                document.getElementById('buzzerQueueSection').classList.add('hidden');
+                setActiveSpeakerOnHost(chosenSpeaker.id, chosenSpeaker.name);
+            }
+
+            // Broadcast to all students
+            publishEvent('new_round', {
+                roundId: roundId,
+                word: currentWord,
+                mode: selectedMode,
+                speakerId: chosenSpeaker ? chosenSpeaker.id : null,
+                speakerName: chosenSpeaker ? chosenSpeaker.name : null
+            });
+
+            AudioEngine.playNewWord();
+            showToast(`Sent "${currentWord}" to all phones!`);
+        }
+
+        function pickFromQueue(studentId) {
+            const s = students[studentId];
+            if (!s) return;
+            currentSpeakerId = s.id;
+            setActiveSpeakerOnHost(s.id, s.name);
+
+            publishEvent('assign_speaker', {
+                roundId: roundId,
+                word: currentWord,
+                speakerId: s.id,
+                speakerName: s.name
+            });
+            showToast(`Picked ${s.name} to pronounce "${currentWord}"!`);
+        }
+
+        function setActiveSpeakerOnHost(id, name) {
+            const badge = document.getElementById('activeSpeakerBadge');
+            const gradeBar = document.getElementById('quickGradeBar');
+            badge.classList.remove('hidden');
+            gradeBar.classList.remove('hidden');
+            document.getElementById('activeSpeakerName').textContent = name;
+            document.getElementById('gradeTargetName').textContent = name;
+        }
+
+        function resetRoundBells() {
+            buzzQueue = [];
+            currentSpeakerId = null;
+            document.getElementById('activeSpeakerBadge').classList.add('hidden');
+            document.getElementById('quickGradeBar').classList.add('hidden');
+            renderBuzzerQueue();
+
+            publishEvent('reset_bells', {
+                roundId: roundId,
+                word: currentWord
+            });
+            showToast("Bells reset for current word!");
+        }
+
+        function clearWordStage() {
+            currentWord = "";
+            currentSpeakerId = null;
+            buzzQueue = [];
+            document.getElementById('wordInput').value = "";
+            document.getElementById('activeRoundPanel').classList.add('hidden');
+            publishEvent('clear_stage', { ts: Date.now() });
+            showToast("Cleared word from all screens.");
+        }
+
+        function renderBuzzerQueue() {
+            const container = document.getElementById('buzzerQueueList');
+            if (buzzQueue.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-400 italic">Waiting for students to press their bell...</span>`;
+                return;
+            }
+            container.innerHTML = buzzQueue.map((item, idx) => {
+                const isSelected = currentSpeakerId === item.id;
+                return `
+                    <button onclick="pickFromQueue('${item.id}')"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold border transition active:scale-95 ${isSelected ? 'bg-emerald-500 text-white border-emerald-600 shadow' : 'bg-white text-slate-800 border-indigo-200 hover:bg-indigo-50'}">
+                        <span class="px-1.5 py-0.5 rounded-md ${isSelected ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'}">#${idx + 1}</span>
+                        <span>${escapeHtml(item.name)}</span>
+                        ${isSelected ? '<span>🎤</span>' : ''}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        // ==================== STUDENT INTERACTIONS ====================
+        function studentPressBell() {
+            if (hasBuzzedThisRound) return;
+            hasBuzzedThisRound = true;
+            AudioEngine.init();
+            AudioEngine.playBellRing();
+            if (navigator.vibrate) navigator.vibrate(150);
+
+            publishEvent('student_buzz', {
+                roundId: currentStudentRoundId,
+                id: myId,
+                name: myName,
+                ts: Date.now()
+            });
+
+            // Update student button immediately to "Buzzed! Waiting for GM..."
+            const area = document.getElementById('studentActionArea');
+            area.innerHTML = `
+                <div class="animate-pop">
+                    <div class="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-3xl mx-auto mb-3">
+                        🙋
+                    </div>
+                    <h3 class="font-game text-xl font-bold text-slate-900">Bell Pressed!</h3>
+                    <p class="text-xs text-slate-500 mt-1">Wait for the Game Master to pick a speaker...</p>
+                </div>
+            `;
+        }
+
+        // ==================== INCOMING MQTT ROUTING ====================
+        function handleIncomingMessage(topic, data) {
+            const sub = topic.split('/').pop();
+
+            if (role === 'host') {
+                if (sub === 'presence') {
+                    const existing = students[data.id];
+                    students[data.id] = {
+                        id: data.id,
+                        name: data.name,
+                        color: data.color || 'bg-indigo-600',
+                        score: existing ? existing.score : 0,
+                        lastSeen: Date.now()
+                    };
+                    if (!existing) {
+                        AudioEngine.playNewWord();
+                        showToast(`${data.name} joined!`);
+                        broadcastLeaderboard();
+                    }
+                    renderHostScoreboard();
+                    if (selectedMode === 'manual') renderManualStudentChips();
+                } else if (sub === 'leave') {
+                    delete students[data.id];
+                    renderHostScoreboard();
+                    broadcastLeaderboard();
+                } else if (sub === 'student_buzz') {
+                    if (data.roundId === roundId && selectedMode === 'buzzer') {
+                        if (!buzzQueue.some(b => b.id === data.id)) {
+                            buzzQueue.push({ id: data.id, name: data.name, ts: data.ts });
+                            AudioEngine.playBellRing();
+                            renderBuzzerQueue();
+                        }
+                    }
+                }
+            } else if (role === 'student') {
+                if (sub === 'new_round') {
+                    currentStudentRoundId = data.roundId;
+                    hasBuzzedThisRound = false;
+                    renderStudentNewRound(data);
+                } else if (sub === 'assign_speaker') {
+                    if (data.roundId === currentStudentRoundId) {
+                        renderStudentAssignedSpeaker(data.speakerId, data.speakerName);
+                    }
+                } else if (sub === 'reset_bells') {
+                    if (data.roundId === currentStudentRoundId) {
+                        hasBuzzedThisRound = false;
+                        renderStudentNewRound({
+                            roundId: data.roundId,
+                            word: data.word,
+                            mode: 'buzzer'
+                        });
+                    }
+                } else if (sub === 'clear_stage') {
+                    document.getElementById('studentModeTag').textContent = "Waiting for Word";
+                    document.getElementById('studentModeTag').className = "inline-block px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-bold uppercase tracking-wider mb-3";
+                    document.getElementById('studentTargetWord').textContent = "Ready...";
+                    document.getElementById('studentWordHint').textContent = "Your teacher will send an English word here shortly!";
+                    document.getElementById('studentActionArea').innerHTML = `
+                        <div class="text-4xl mb-2">🎧</div>
+                        <p class="text-sm font-semibold text-slate-600">Get your voice ready!</p>
+                        <p class="text-xs text-slate-400 mt-1">When a word appears, follow the mode on screen.</p>
+                    `;
+                } else if (sub === 'leaderboard') {
+                    renderStudentLeaderboard(data.list || []);
+                }
+            }
+        }
+
+        function renderStudentNewRound(data) {
+            const tag = document.getElementById('studentModeTag');
+            const wordEl = document.getElementById('studentTargetWord');
+            const hintEl = document.getElementById('studentWordHint');
+            const area = document.getElementById('studentActionArea');
+
+            wordEl.textContent = data.word;
+            wordEl.classList.remove('animate-pop');
+            void wordEl.offsetWidth;
+            wordEl.classList.add('animate-pop');
+
+            if (data.mode === 'buzzer') {
+                AudioEngine.playNewWord();
+                tag.textContent = "🔔 Mode 1: Bell Queue";
+                tag.className = "inline-block px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-extrabold uppercase tracking-wider mb-3";
+                hintEl.textContent = "Know how to pronounce this? Press the bell below!";
+
+                area.innerHTML = `
+                    <button onclick="studentPressBell()"
+                        class="bell-btn animate-pulse-ring w-36 h-36 rounded-full bg-gradient-to-b from-indigo-500 to-indigo-700 border-4 border-indigo-200 flex flex-col items-center justify-center text-white focus:outline-none">
+                        <span class="text-4xl mb-1">🔔</span>
+                        <span class="font-game text-xl font-extrabold tracking-wide">RING BELL</span>
+                    </button>
+                `;
+            } else {
+                // Mode 2 (Manual) or Mode 3 (Random)
+                const modeLabel = data.mode === 'random' ? "🎲 Mode 3: Random Pick" : "👆 Mode 2: Teacher's Pick";
+                tag.textContent = modeLabel;
+                tag.className = "inline-block px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-extrabold uppercase tracking-wider mb-3";
+                hintEl.textContent = "Listen carefully to the chosen speaker!";
+                renderStudentAssignedSpeaker(data.speakerId, data.speakerName);
+            }
+        }
+
+        function renderStudentAssignedSpeaker(speakerId, speakerName) {
+            const area = document.getElementById('studentActionArea');
+            if (speakerId === myId) {
+                AudioEngine.playBellRing();
+                if (navigator.vibrate) navigator.vibrate([250, 80, 250]);
+                area.innerHTML = `
+                    <div class="w-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-5 shadow-lg animate-pop">
+                        <div class="text-4xl mb-2">🔔🎤</div>
+                        <span class="inline-block px-3 py-0.5 rounded-full bg-white/20 text-xs font-extrabold uppercase mb-1">
+                            It's Your Turn!
+                        </span>
+                        <h3 class="font-game text-2xl font-bold">Pronounce the Word!</h3>
+                        <p class="text-xs text-emerald-50 mt-1">Speak clearly so everyone can hear you.</p>
+                    </div>
+                `;
+            } else {
+                AudioEngine.playNewWord();
+                area.innerHTML = `
+                    <div class="animate-pop">
+                        <div class="w-14 h-14 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center text-2xl mx-auto mb-2.5">
+                            👂
+                        </div>
+                        <span class="inline-block px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-700 text-[11px] font-bold uppercase mb-1">
+                            Speaker Selected
+                        </span>
+                        <h3 class="font-game text-xl font-bold text-slate-900">
+                            ${escapeHtml(speakerName)}'s Turn!
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1">Listen to how ${escapeHtml(speakerName)} pronounces it.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // ==================== SCOREBOARD & LEADERBOARD SYNC ====================
+        function pruneInactiveStudents() {
+            const now = Date.now();
+            let changed = false;
+            Object.keys(students).forEach(id => {
+                if (now - students[id].lastSeen > 22000) {
+                    delete students[id];
+                    changed = true;
+                }
+            });
+            if (changed) {
+                renderHostScoreboard();
+                broadcastLeaderboard();
+            }
+        }
+
+        function adjustScore(id, delta) {
+            if (!students[id]) return;
+            students[id].score = Math.max(0, students[id].score + delta);
+            if (delta > 0) AudioEngine.playPointUp();
+            renderHostScoreboard();
+            broadcastLeaderboard();
+        }
+
+        function rewardCurrentSpeaker(pts) {
+            if (!currentSpeakerId || !students[currentSpeakerId]) {
+                return showToast("No active speaker selected!");
+            }
+            adjustScore(currentSpeakerId, pts);
+            showToast(`+${pts} pt(s) awarded to ${students[currentSpeakerId].name}!`);
+        }
+
+        function resetAllScores() {
+            Object.keys(students).forEach(id => students[id].score = 0);
+            renderHostScoreboard();
+            broadcastLeaderboard();
+            showToast("All scores reset to 0.");
+        }
+
+        function getSortedPlayers() {
+            return Object.values(students).sort((a, b) => b.score - a.score);
+        }
+
+        function broadcastLeaderboard() {
+            const sorted = getSortedPlayers().map(s => ({
+                id: s.id,
+                name: s.name,
+                color: s.color,
+                score: s.score
+            }));
+            publishEvent('leaderboard', { list: sorted });
+        }
+
+        function renderHostScoreboard() {
+            const list = getSortedPlayers();
+            document.getElementById('studentCount').textContent = list.length;
+            const container = document.getElementById('hostScoreboardList');
+
+            if (list.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 italic py-4 text-center">Waiting for students to join with the 4-digit room code...</p>`;
+                return;
+            }
+
+            container.innerHTML = list.map((s, idx) => {
+                const medal = idx === 0 && s.score > 0 ? '🥇' : idx === 1 && s.score > 0 ? '🥈' : idx === 2 && s.score > 0 ? '🥉' : `#${idx + 1}`;
+                return `
+                    <div class="flex items-center justify-between bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5">
+                        <div class="flex items-center gap-3">
+                            <span class="font-mono text-xs font-extrabold text-slate-500 w-6">${medal}</span>
+                            <div class="w-8 h-8 rounded-xl ${s.color} flex items-center justify-center font-bold text-white text-sm shadow-sm">
+                                ${escapeHtml(s.name.charAt(0).toUpperCase())}
+                            </div>
+                            <span class="font-bold text-slate-900 text-sm">${escapeHtml(s.name)}</span>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button onclick="adjustScore('${s.id}', -1)" class="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-base transition active:scale-90">-</button>
+                            <span class="font-game text-lg font-extrabold text-indigo-600 w-8 text-center">${s.score}</span>
+                            <button onclick="adjustScore('${s.id}', 1)" class="w-8 h-8 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-base shadow-sm transition active:scale-90">+</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderStudentLeaderboard(list) {
+            const container = document.getElementById('studentLeaderboardList');
+            if (!list || list.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-2">Waiting for players...</p>`;
+                return;
+            }
+
+            // Update my own score badge
+            const me = list.find(item => item.id === myId);
+            if (me) {
+                const prev = parseInt(document.getElementById('studentMyScore').textContent || '0', 10);
+                if (me.score > prev) {
+                    AudioEngine.playPointUp();
+                    showToast(`🎉 You got +${me.score - prev} point!`);
+                }
+                document.getElementById('studentMyScore').textContent = me.score;
+            }
+
+            container.innerHTML = list.map((s, idx) => {
+                const isMe = s.id === myId;
+                const medal = idx === 0 && s.score > 0 ? '🥇' : idx === 1 && s.score > 0 ? '🥈' : idx === 2 && s.score > 0 ? '🥉' : `${idx + 1}.`;
+                return `
+                    <div class="flex items-center justify-between px-3 py-2 rounded-xl text-xs ${isMe ? 'bg-indigo-50 border border-indigo-200 font-bold' : 'bg-slate-50'}">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono font-bold text-slate-500 w-5">${medal}</span>
+                            <span class="w-2.5 h-2.5 rounded-full ${s.color}"></span>
+                            <span class="text-slate-800">${escapeHtml(s.name)} ${isMe ? '<span class="text-indigo-600">(You)</span>' : ''}</span>
+                        </div>
+                        <span class="font-game font-extrabold text-sm text-indigo-600">${s.score} pts</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+    </script>
+</body>
+</html>
