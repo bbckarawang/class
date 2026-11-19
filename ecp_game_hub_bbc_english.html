@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ECP Game Hub - BBC English</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MQTT.js over WebSockets for zero-config real-time multiplayer across mobile data/Wi-Fi -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Google Fonts: Inter & Fredoka for friendly game headers -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .font-game {
+            font-family: 'Fredoka', sans-serif;
+        }
+        /* Custom Bouncing Ball Animation for Roulette */
+        @keyframes crazyBounce {
+            0%, 100% { transform: translateY(0) scale(1); }
+            25% { transform: translateY(-45px) scale(1.12) rotate(15deg); }
+            50% { transform: translateY(0) scale(0.92) rotate(0deg); }
+            75% { transform: translateY(-25px) scale(1.06) rotate(-15deg); }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            50% { box-shadow: 0 0 0 22px rgba(16, 185, 129, 0); }
+        }
+        @keyframes cardPop {
+            0% { transform: scale(0.85) translateY(15px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .animate-ball {
+            animation: crazyBounce 0.55s infinite ease-in-out;
+        }
+        .animate-win-glow {
+            animation: pulseGlow 1.5s infinite;
+        }
+        .animate-card-pop {
+            animation: cardPop 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        /* Hide scrollbars cleanly */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 sticky top-0 z-40 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center font-game font-bold text-slate-950 text-lg shadow-lg">
+                BBC
+            </div>
+            <div>
+                <h1 class="font-game font-bold text-base sm:text-lg leading-tight text-white">ECP Game Hub</h1>
+                <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                    <span id="connDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="connText">Ready to connect</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- Sound Toggle Button -->
+            <button id="muteBtn" onclick="toggleMute()" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition active:scale-95" title="Toggle Sound">
+                <span id="muteIcon">🔊</span>
+            </button>
+            <!-- Leave Room Button (Visible when inside a room) -->
+            <button id="leaveBtn" onclick="confirmLeave()" class="hidden px-3 py-2 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-semibold transition active:scale-95">
+                Exit
+            </button>
+        </div>
+    </header>
+
+    <!-- Toast Notification Banner -->
+    <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+        <div id="toastMsg" class="bg-slate-800 border border-slate-700 text-white text-sm font-medium px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2">
+        </div>
+    </div>
+
+    <!-- Custom Modal Dialog (Replaces alert/confirm) -->
+    <div id="customModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-card-pop">
+            <h3 id="modalTitle" class="font-game text-xl font-bold text-white mb-2">Confirm</h3>
+            <p id="modalBody" class="text-slate-300 text-sm mb-6 leading-relaxed"></p>
+            <div class="flex gap-3 justify-end">
+                <button id="modalCancel" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition">Cancel</button>
+                <button id="modalConfirm" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 1. LANDING SCREEN ==================== -->
+    <main id="landingScreen" class="flex-1 flex flex-col items-center justify-center p-4 max-w-md mx-auto w-full">
+        <div class="text-center mb-8">
+            <span class="inline-block px-3 py-1 rounded-full bg-amber-500/15 text-amber-400 text-xs font-bold tracking-wider uppercase mb-3 border border-amber-500/30">
+                English Conversation Program
+            </span>
+            <h2 class="font-game text-3xl sm:text-4xl font-bold text-white mb-2">Outdoor Hangout Games</h2>
+            <p class="text-slate-400 text-sm">Real-time interactive party hub for BBC ECP class. No app install needed!</p>
+        </div>
+
+        <!-- Role Selection Cards -->
+        <div id="roleSelector" class="w-full space-y-4">
+            <!-- Student Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-2xl">
+                        📱
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold text-white">Join as Student</h3>
+                        <p class="text-xs text-slate-400">Enter your name & teacher's 4-digit room code</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="studentNameInput" maxlength="16" placeholder="Your Nickname (e.g., Budi)"
+                        class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-2xl px-4 py-3.5 text-white placeholder-slate-500 text-base outline-none transition">
+                    <div class="flex gap-2">
+                        <input type="tel" id="roomCodeInput" maxlength="4" placeholder="Room Code (4 digits)"
+                            class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-2xl px-4 py-3.5 text-white placeholder-slate-500 text-center font-mono text-lg tracking-widest uppercase outline-none transition">
+                        <button onclick="joinAsStudent()"
+                            class="px-6 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-base shadow-lg shadow-indigo-600/30 transition whitespace-nowrap">
+                            Join
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-slate-800"></div>
+                <span class="flex-shrink mx-4 text-slate-500 text-xs uppercase font-semibold">Or Teacher Control</span>
+                <div class="flex-grow border-t border-slate-800"></div>
+            </div>
+
+            <!-- Game Master Card -->
+            <button onclick="startAsHost()"
+                class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 active:scale-[0.98] text-slate-950 rounded-3xl p-5 shadow-xl shadow-orange-600/20 transition flex items-center justify-between text-left">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-950/20 flex items-center justify-center text-2xl">
+                        👑
+                    </div>
+                    <div>
+                        <h3 class="font-game text-lg font-bold">Game Master (Teacher)</h3>
+                        <p class="text-xs text-slate-900 font-medium">Create a room & control all student screens</p>
+                    </div>
+                </div>
+                <span class="text-xl font-bold">→</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- ==================== 2. STUDENT VIEW ==================== -->
+    <section id="studentScreen" class="hidden flex-1 flex flex-col p-4 max-w-md mx-auto w-full">
+        <!-- Student Profile Strip -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 mb-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div id="studentAvatar" class="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center font-bold text-white text-lg shadow">
+                    S
+                </div>
+                <div>
+                    <div id="studentDisplayName" class="font-bold text-white text-sm">Student</div>
+                    <div class="text-xs text-slate-400">Room: <span id="studentRoomBadge" class="font-mono font-bold text-amber-400">----</span></div>
+                </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-semibold border border-emerald-500/30">
+                ● Live
+            </span>
+        </div>
+
+        <!-- Dynamic Student Stage Container -->
+        <div id="studentStage" class="flex-1 flex flex-col justify-center">
+            <!-- Default Waiting State -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-8 text-center shadow-xl">
+                <div class="w-20 h-20 rounded-full bg-indigo-500/15 text-indigo-400 flex items-center justify-center text-4xl mx-auto mb-5 animate-bounce">
+                    ☕
+                </div>
+                <h2 class="font-game text-2xl font-bold text-white mb-2">You're In!</h2>
+                <p class="text-slate-400 text-sm leading-relaxed mb-6">
+                    Keep this screen open on your phone. Your teacher will send game cards, secret words, or roulette challenges here!
+                </p>
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-950 border border-slate-800 text-xs text-slate-400">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+                    Waiting for Game Master...
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== 3. GAME MASTER (HOST) VIEW ==================== -->
+    <section id="hostScreen" class="hidden flex-1 flex flex-col max-w-4xl mx-auto w-full p-4 pb-24">
+        
+        <!-- Room Header & Share Bar -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4 shadow-lg">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold block">Room Code</span>
+                    <div class="flex items-center gap-2">
+                        <span id="hostRoomCode" class="font-mono text-3xl font-extrabold text-amber-400 tracking-widest">0000</span>
+                        <button onclick="copyShareLink()" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition active:scale-95">
+                            🔗 Copy Invite Link
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="toggleSimulator()" id="simToggleBtn" class="px-3 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-bold transition active:scale-95">
+                        🧪 Preview Student View
+                    </button>
+                    <button onclick="resetAllScreens()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition active:scale-95">
+                        🔄 Reset Screens
+                    </button>
+                </div>
+            </div>
+
+            <!-- Connected Students Roster -->
+            <div class="mt-4 pt-3 border-t border-slate-800">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-slate-300">
+                        Connected Students (<span id="studentCount" class="text-amber-400">0</span>)
+                    </span>
+                    <button onclick="addDummyStudents()" class="text-xs text-slate-400 hover:text-amber-400 underline">
+                        + Add Test Bots
+                    </button>
+                </div>
+                <div id="studentRoster" class="flex flex-wrap gap-2 min-h-[36px]">
+                    <span class="text-xs text-slate-500 italic py-1">Waiting for students to join with code...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Split Screen Simulator Drawer (Optional Solo Testing) -->
+        <div id="simulatorBox" class="hidden mb-4 bg-indigo-950/40 border-2 border-dashed border-indigo-500/50 rounded-3xl p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-300">🧪 Live Student Phone Simulator (Test Mode)</span>
+                <button onclick="toggleSimulator()" class="text-xs text-indigo-400 hover:text-white">Hide ✕</button>
+            </div>
+            <div id="simViewport" class="bg-slate-950 rounded-2xl p-4 border border-slate-800 min-h-[160px] flex flex-col justify-center">
+                <p class="text-center text-xs text-slate-400">Trigger any game mode below to preview what a student sees on their phone!</p>
+            </div>
+        </div>
+
+        <!-- Game Mode Navigation Tabs -->
+        <div class="grid grid-cols-3 gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 mb-4">
+            <button onclick="switchHostTab('hotseat')" id="tab-hotseat" class="py-2.5 px-2 rounded-xl font-game font-bold text-xs sm:text-sm bg-amber-500 text-slate-950 shadow transition">
+                🔥 1. Hot Seat
+            </button>
+            <button onclick="switchHostTab('impostor')" id="tab-impostor" class="py-2.5 px-2 rounded-xl font-game font-bold text-xs sm:text-sm text-slate-400 hover:text-white transition">
+                🕵️ 2. Impostor
+            </button>
+            <button onclick="switchHostTab('whisper')" id="tab-whisper" class="py-2.5 px-2 rounded-xl font-game font-bold text-xs sm:text-sm text-slate-400 hover:text-white transition">
+                🤫 3. Whisper
+            </button>
+        </div>
+
+        <!-- ==================== TAB 1: HOT SEAT & ROULETTE ==================== -->
+        <div id="panel-hotseat" class="space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+                <h3 class="font-game text-lg font-bold text-white mb-1">🔥 Hot Seat & Ball Roulette</h3>
+                <p class="text-xs text-slate-400 mb-4">Pick a question, then either send it directly to 1 student OR spin the random musical ball across all phones!</p>
+
+                <!-- Question Selector -->
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-1.5">1. Choose or Type Question</label>
+                <select id="hotseatSelect" onchange="syncHotseatInput()" class="w-full bg-slate-950 border border-slate-700 rounded-2xl px-3.5 py-3 text-sm text-white mb-2.5 outline-none focus:border-amber-500">
+                    <!-- Populated by JS -->
+                </select>
+                <textarea id="hotseatCustomInput" rows="2" placeholder="Or type your custom English question here..."
+                    class="w-full bg-slate-950 border border-slate-700 rounded-2xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-amber-500 mb-4"></textarea>
+
+                <!-- Action Mode A: Random Roulette -->
+                <div class="bg-gradient-to-r from-emerald-950/60 to-teal-950/60 border border-emerald-500/30 rounded-2xl p-4 mb-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <h4 class="font-game font-bold text-emerald-300 text-base">🎲 Option A: Random Ball Roulette</h4>
+                            <p class="text-xs text-slate-300">All phones bounce a colorful ball with 5s suspense music & pick 1 random student!</p>
+                        </div>
+                        <button onclick="triggerRoulette()" class="px-5 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-extrabold text-sm shadow-lg shadow-emerald-500/25 transition whitespace-nowrap">
+                            Start Roulette
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action Mode B: Manual Target -->
+                <div class="bg-slate-950/70 border border-slate-800 rounded-2xl p-4">
+                    <h4 class="font-game font-bold text-amber-300 text-base mb-1">🎯 Option B: Send to Specific Student</h4>
+                    <p class="text-xs text-slate-400 mb-3">Tap 1 student below to send this question card straight to their phone:</p>
+                    <div id="hotseatTargetList" class="flex flex-wrap gap-2 mb-3">
+                        <span class="text-xs text-slate-500">No students connected yet.</span>
+                    </div>
+                    <button onclick="sendDirectHotseat()" class="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-sm transition">
+                        Send Card to Selected Student
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2: IMPOSTOR (UNDERCOVER) ==================== -->
+        <div id="panel-impostor" class="hidden space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+                <h3 class="font-game text-lg font-bold text-white mb-1">🕵️ Impostor (Secret Word)</h3>
+                <p class="text-xs text-slate-400 mb-4">Everyone gets a secret word, except the Impostor gets a slightly different word. Nobody is told their role!</p>
+
+                <!-- Word Pair Selector -->
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-1.5">1. Select Secret Word Pair</label>
+                <select id="impostorSelect" onchange="syncImpostorInputs()" class="w-full bg-slate-950 border border-slate-700 rounded-2xl px-3.5 py-3 text-sm text-white mb-3 outline-none focus:border-amber-500">
+                    <!-- Populated by JS -->
+                </select>
+
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                        <label class="block text-[11px] font-bold text-emerald-400 uppercase mb-1">Majority Word (Citizens)</label>
+                        <input type="text" id="citizenWordInput" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-rose-400 uppercase mb-1">Impostor Word</label>
+                        <input type="text" id="impostorWordInput" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none focus:border-rose-500">
+                    </div>
+                </div>
+
+                <!-- Impostor Selection Mode -->
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-1.5">2. Who is the Impostor?</label>
+                <div class="flex gap-2 mb-3">
+                    <button onclick="setImpostorMode('random')" id="impModeRandom" class="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs transition">
+                        🎲 Pick Randomly (1)
+                    </button>
+                    <button onclick="setImpostorMode('manual')" id="impModeManual" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs transition">
+                        👆 Pick Manually
+                    </button>
+                </div>
+
+                <div id="impostorManualBox" class="hidden bg-slate-950 border border-slate-800 rounded-2xl p-3 mb-4">
+                    <p class="text-xs text-slate-400 mb-2">Tap 1 or 2 students to secretly become the Impostor:</p>
+                    <div id="impostorTargetList" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <button onclick="startImpostorGame()" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-400 hover:to-orange-400 active:scale-95 text-white font-extrabold text-sm shadow-lg transition">
+                    🚀 Distribute Secret Words Now
+                </button>
+
+                <!-- Teacher Cheat Sheet -->
+                <div id="impostorCheatSheet" class="hidden mt-4 bg-slate-950 border border-amber-500/40 rounded-2xl p-4">
+                    <div class="text-xs font-bold uppercase text-amber-400 mb-1">👑 Teacher Cheat Sheet (Keep Hidden!)</div>
+                    <div id="cheatSheetContent" class="text-sm text-slate-200 space-y-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 3: WHISPER GAME ==================== -->
+        <div id="panel-whisper" class="hidden space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+                <h3 class="font-game text-lg font-bold text-white mb-1">🤫 Whisper Game (Homophone Traps)</h3>
+                <p class="text-xs text-slate-400 mb-4">Send a tricky English sentence to 1 or 2 team captains. They read it secretly and whisper it down the line!</p>
+
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-1.5">1. Choose Tricky Homophone Sentence</label>
+                <select id="whisperSelect" onchange="syncWhisperInput()" class="w-full bg-slate-950 border border-slate-700 rounded-2xl px-3.5 py-3 text-sm text-white mb-2.5 outline-none focus:border-amber-500">
+                    <!-- Populated by JS -->
+                </select>
+                <textarea id="whisperCustomInput" rows="2" placeholder="Or write your own whisper sentence..."
+                    class="w-full bg-slate-950 border border-slate-700 rounded-2xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-amber-500 mb-4"></textarea>
+
+                <label class="block text-xs font-bold text-slate-300 uppercase mb-1.5">2. Select Recipient(s) (e.g. Team A & Team B First Players)</label>
+                <div id="whisperTargetList" class="flex flex-wrap gap-2 mb-4 bg-slate-950 p-3 rounded-2xl border border-slate-800 min-h-[48px]">
+                    <span class="text-xs text-slate-500">No students connected yet.</span>
+                </div>
+
+                <button onclick="sendWhisperCards()" class="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-extrabold text-sm shadow-lg shadow-purple-600/25 transition">
+                    🤫 Send Secret Whisper Card
+                </button>
+            </div>
+        </div>
+
+    </section>
+
+    <script>
+        // ==================== PRE-LOADED GAME DATA ====================
+        const HOTSEAT_QUESTIONS = [
+            "[EXAMPLE] What was your favorite food/drink from today's order, and why?",
+            "1. Who is the funniest person at this table today, and why?",
+            "2. What is one new English word you learned today?",
+            "3. If you could give a nickname to the person on your right, what would it be?",
+            "4. If you had to eat only one dish from this restaurant for a whole month, what would you choose?",
+            "5. Who at this table looks like they could be a famous YouTuber or TikToker?",
+            "6. What is the weirdest food combination you have ever tried?",
+            "7. If the restaurant gave us a free dessert right now, who deserves to eat it first?",
+            "8. What is one thing on your bucket list that you want to do this year?",
+            "9. If you could swap jobs or schools with someone at this table for one day, who would it be?",
+            "10. Describe today's hangout using only three English words!"
+        ];
+
+        const IMPOSTOR_PAIRS = [
+            { citizen: "Coffee", impostor: "Tea" },
+            { citizen: "Beach", impostor: "Mountain" },
+            { citizen: "Pizza", impostor: "Burger" },
+            { citizen: "Cat", impostor: "Tiger" },
+            { citizen: "Motorcycle", impostor: "Bicycle" },
+            { citizen: "Rain", impostor: "Snow" },
+            { citizen: "Ice Cream", impostor: "Cake" },
+            { citizen: "Fried Rice", impostor: "Noodles" },
+            { citizen: "Doctor", impostor: "Nurse" },
+            { citizen: "Guitar", impostor: "Piano" }
+        ];
+
+        const WHISPER_SENTENCES = [
+            "1. I ate eight sweet cakes at the sea and see nothing.",
+            "2. Please buy two tickets to go to the zoo too.",
+            "3. The knight rode his horse at night to the right road.",
+            "4. She sells fresh seashells and wears a pair of pear earrings.",
+            "5. Can you hear me here, or is the bear bare?",
+            "6. I knew you bought a new blue shoe that blew away.",
+            "7. My son sat in the sun and won one prize.",
+            "8. Please write the right answer before you leave.",
+            "9. The weak chef made a week of sweet meat soup.",
+            "10. Their friends are sitting over there with they're happy faces."
+        ];
+
+        const AVATAR_COLORS = [
+            "bg-rose-500", "bg-amber-500", "bg-emerald-500", "bg-cyan-500",
+            "bg-indigo-500", "bg-purple-500", "bg-pink-500", "bg-teal-500"
+        ];
+
+        // ==================== GLOBAL STATE ====================
+        let client = null;
+        let role = null; // 'host' | 'student'
+        let roomCode = "";
+        let myId = "u_" + Math.random().toString(36).substring(2, 9);
+        let myName = "";
+        let myColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+        let isMuted = false;
+        let heartbeatTimer = null;
+
+        // Host State
+        let students = {}; // { id: { id, name, color, lastSeen, isBot } }
+        let selectedHotseatTarget = null;
+        let impostorMode = "random"; // 'random' | 'manual'
+        let selectedImpostorTargets = new Set();
+        let selectedWhisperTargets = new Set();
+        let simulatorOpen = false;
+
+        // Student State
+        let cardHidden = false;
+        let rouletteTimer = null;
+
+        // ==================== WEB AUDIO API SOUND ENGINE ====================
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type = 'sine', duration = 0.2, vol = 0.25, delay = 0) {
+                if (isMuted) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + delay);
+                    osc.stop(this.ctx.currentTime + delay + duration);
+                } catch (e) {}
+            },
+            playTick(step = 0) {
+                const scale = [330, 370, 415, 440, 494, 554, 622, 659];
+                const freq = scale[step % scale.length];
+                this.playTone(freq, 'triangle', 0.12, 0.22);
+            },
+            playWin() {
+                this.playTone(523.25, 'sine', 0.18, 0.3, 0);     // C5
+                this.playTone(659.25, 'sine', 0.18, 0.3, 0.12);  // E5
+                this.playTone(783.99, 'sine', 0.18, 0.3, 0.24);  // G5
+                this.playTone(1046.50, 'triangle', 0.45, 0.35, 0.36); // C6
+            },
+            playSafe() {
+                this.playTone(440, 'sine', 0.2, 0.15, 0);
+                this.playTone(349.23, 'sine', 0.3, 0.15, 0.15);
+            },
+            playCardDing() {
+                this.playTone(587.33, 'sine', 0.15, 0.25, 0);
+                this.playTone(880, 'sine', 0.3, 0.25, 0.1);
+            }
+        };
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            document.getElementById('muteIcon').textContent = isMuted ? '🔇' : '🔊';
+            showToast(isMuted ? 'Sound muted' : 'Sound enabled');
+            if (!isMuted) AudioEngine.playCardDing();
+        }
+
+        // ==================== UI HELPERS ====================
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('opacity-0', '-translate-y-2');
+            clearTimeout(window._toastTimeout);
+            window._toastTimeout = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+            }, 2600);
+        }
+
+        function openModal(title, body, onConfirm) {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = body;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            document.getElementById('modalCancel').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+            document.getElementById('modalConfirm').onclick = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        function setConnStatus(status) {
+            const dot = document.getElementById('connDot');
+            const txt = document.getElementById('connText');
+            if (status === 'connected') {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+                txt.textContent = `Connected • Room ${roomCode}`;
+            } else if (status === 'connecting') {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                txt.textContent = "Connecting to live server...";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-rose-500";
+                txt.textContent = "Disconnected - Reconnecting...";
+            }
+        }
+
+        // ==================== INITIALIZATION ====================
+        window.onload = () => {
+            // Populate dropdowns
+            const hsSel = document.getElementById('hotseatSelect');
+            HOTSEAT_QUESTIONS.forEach((q, idx) => {
+                const opt = document.createElement('option');
+                opt.value = q.replace(/^(\[EXAMPLE\]|\d+\.)\s*/, '');
+                opt.textContent = q;
+                hsSel.appendChild(opt);
+            });
+            syncHotseatInput();
+
+            const impSel = document.getElementById('impostorSelect');
+            IMPOSTOR_PAIRS.forEach((p, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = `${idx + 1}. ${p.citizen}  vs  ${p.impostor}`;
+                impSel.appendChild(opt);
+            });
+            syncImpostorInputs();
+
+            const whSel = document.getElementById('whisperSelect');
+            WHISPER_SENTENCES.forEach((s) => {
+                const opt = document.createElement('option');
+                opt.value = s.replace(/^\d+\.\s*/, '');
+                opt.textContent = s;
+                whSel.appendChild(opt);
+            });
+            syncWhisperInput();
+
+            // Check URL parameter ?room=XXXX
+            const params = new URLSearchParams(window.location.search);
+            const urlRoom = params.get('room');
+            if (urlRoom && /^\d{4}$/.test(urlRoom)) {
+                document.getElementById('roomCodeInput').value = urlRoom;
+                showToast(`Room ${urlRoom} pre-filled! Enter your name to join.`);
+            }
+        };
+
+        function syncHotseatInput() {
+            document.getElementById('hotseatCustomInput').value = document.getElementById('hotseatSelect').value;
+        }
+        function syncImpostorInputs() {
+            const pair = IMPOSTOR_PAIRS[document.getElementById('impostorSelect').value];
+            document.getElementById('citizenWordInput').value = pair.citizen;
+            document.getElementById('impostorWordInput').value = pair.impostor;
+        }
+        function syncWhisperInput() {
+            document.getElementById('whisperCustomInput').value = document.getElementById('whisperSelect').value;
+        }
+
+        // ==================== MQTT REAL-TIME NETWORKING ====================
+        function connectMQTT(onReady) {
+            setConnStatus('connecting');
+            // Public WSS broker supporting WebSockets over TLS (works on mobile data & Wi-Fi)
+            const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+            const clientId = 'bbc_ecp_' + myId + '_' + Math.floor(Math.random() * 1000);
+
+            client = mqtt.connect(brokerUrl, {
+                clientId: clientId,
+                clean: true,
+                connectTimeout: 8000,
+                reconnectPeriod: 2000
+            });
+
+            client.on('connect', () => {
+                setConnStatus('connected');
+                const topic = `bbc_ecp_gamehub/room/${roomCode}/#`;
+                client.subscribe(topic, { qos: 1 }, (err) => {
+                    if (!err && onReady) onReady();
+                });
+            });
+
+            client.on('reconnect', () => setConnStatus('connecting'));
+            client.on('offline', () => setConnStatus('offline'));
+            client.on('error', () => setConnStatus('offline'));
+
+            client.on('message', (topic, message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    handleIncomingMessage(topic, data);
+                } catch (e) {
+                    console.error("Invalid payload", e);
+                }
+            });
+        }
+
+        function publishEvent(subtopic, payload) {
+            if (!client || !client.connected) {
+                showToast("Connection unstable, retrying...");
+                return;
+            }
+            const topic = `bbc_ecp_gamehub/room/${roomCode}/${subtopic}`;
+            client.publish(topic, JSON.stringify(payload), { qos: 1 });
+        }
+
+        // ==================== ROLE ENTRY & EXIT ====================
+        function startAsHost() {
+            AudioEngine.init();
+            role = 'host';
+            roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('hostRoomCode').textContent = roomCode;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('hostScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                showToast(`Room ${roomCode} created! Share link with students.`);
+                // Broadcast host presence periodically
+                heartbeatTimer = setInterval(() => {
+                    publishEvent('host_ping', { ts: Date.now() });
+                    pruneInactiveStudents();
+                }, 4000);
+            });
+        }
+
+        function joinAsStudent() {
+            AudioEngine.init();
+            const nameVal = document.getElementById('studentNameInput').value.trim();
+            const codeVal = document.getElementById('roomCodeInput').value.trim();
+
+            if (!nameVal) {
+                showToast("Please enter your nickname first!");
+                return;
+            }
+            if (!/^\d{4}$/.test(codeVal)) {
+                showToast("Please enter a valid 4-digit Room Code!");
+                return;
+            }
+
+            role = 'student';
+            myName = nameVal;
+            roomCode = codeVal;
+
+            document.getElementById('studentDisplayName').textContent = myName;
+            document.getElementById('studentRoomBadge').textContent = roomCode;
+            const avatar = document.getElementById('studentAvatar');
+            avatar.textContent = myName.charAt(0).toUpperCase();
+            avatar.className = `w-10 h-10 rounded-xl ${myColor} flex items-center justify-center font-bold text-white text-lg shadow`;
+
+            document.getElementById('landingScreen').classList.add('hidden');
+            document.getElementById('studentScreen').classList.remove('hidden');
+            document.getElementById('leaveBtn').classList.remove('hidden');
+
+            connectMQTT(() => {
+                sendStudentPresence();
+                heartbeatTimer = setInterval(sendStudentPresence, 4000);
+                AudioEngine.playCardDing();
+            });
+        }
+
+        function sendStudentPresence() {
+            publishEvent('presence', {
+                id: myId,
+                name: myName,
+                color: myColor,
+                ts: Date.now()
+            });
+        }
+
+        function confirmLeave() {
+            openModal("Leave Game Room?", "Are you sure you want to disconnect from this session?", () => {
+                clearInterval(heartbeatTimer);
+                if (role === 'student') {
+                    publishEvent('leave', { id: myId });
+                }
+                if (client) client.end();
+                location.href = window.location.pathname;
+            });
+        }
+
+        function copyShareLink() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+            const tempInput = document.createElement('input');
+            tempInput.value = url;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast(`Invite link copied! Paste it in your WhatsApp group.`);
+        }
+
+        // ==================== MESSAGE ROUTING ====================
+        function handleIncomingMessage(topic, data) {
+            const sub = topic.split('/').pop();
+
+            if (role === 'host') {
+                if (sub === 'presence') {
+                    const isNew = !students[data.id];
+                    students[data.id] = { ...data, lastSeen: Date.now(), isBot: false };
+                    if (isNew) {
+                        AudioEngine.playCardDing();
+                        showToast(`${data.name} joined the room!`);
+                    }
+                    renderHostStudentLists();
+                } else if (sub === 'leave') {
+                    delete students[data.id];
+                    renderHostStudentLists();
+                } else if (sub === 'command' && simulatorOpen) {
+                    // Render in host's live preview simulator too
+                    renderStudentStageFromCommand(data, 'sim_preview_user', document.getElementById('simViewport'));
+                }
+            } else if (role === 'student') {
+                if (sub === 'host_ping') {
+                    // Immediately reply presence if newly reconnected
+                } else if (sub === 'kick' && data.targetId === myId) {
+                    showToast("You were removed by the teacher.");
+                    setTimeout(() => location.reload(), 1200);
+                } else if (sub === 'command') {
+                    renderStudentStageFromCommand(data, myId, document.getElementById('studentStage'));
+                }
+            }
+        }
+
+        function pruneInactiveStudents() {
+            const now = Date.now();
+            let changed = false;
+            Object.keys(students).forEach(id => {
+                if (!students[id].isBot && now - students[id].lastSeen > 18000) {
+                    delete students[id];
+                    changed = true;
+                }
+            });
+            if (changed) renderHostStudentLists();
+        }
+
+        // ==================== HOST ROSTER & TARGET SELECTORS ====================
+        function addDummyStudents() {
+            const sampleNames = ["Rina (SMA)", "Andi (Kuliah)", "Dimas (Kerja)", "Sari (SMA)", "Budi (Kerja)"];
+            sampleNames.forEach((n, i) => {
+                const botId = "bot_" + i;
+                students[botId] = {
+                    id: botId,
+                    name: n,
+                    color: AVATAR_COLORS[i % AVATAR_COLORS.length],
+                    lastSeen: Date.now(),
+                    isBot: true
+                };
+            });
+            renderHostStudentLists();
+            showToast("Added 5 test students for simulation!");
+        }
+
+        function removeStudent(id) {
+            delete students[id];
+            publishEvent('kick', { targetId: id });
+            renderHostStudentLists();
+        }
+
+        function renderHostStudentLists() {
+            const list = Object.values(students);
+            document.getElementById('studentCount').textContent = list.length;
+
+            const rosterEl = document.getElementById('studentRoster');
+            const hsListEl = document.getElementById('hotseatTargetList');
+            const impListEl = document.getElementById('impostorTargetList');
+            const whListEl = document.getElementById('whisperTargetList');
+
+            if (list.length === 0) {
+                rosterEl.innerHTML = `<span class="text-xs text-slate-500 italic py-1">Waiting for students to join with code...</span>`;
+                hsListEl.innerHTML = `<span class="text-xs text-slate-500">No students connected yet.</span>`;
+                impListEl.innerHTML = `<span class="text-xs text-slate-500">No students connected yet.</span>`;
+                whListEl.innerHTML = `<span class="text-xs text-slate-500">No students connected yet.</span>`;
+                return;
+            }
+
+            // 1. Top Roster Chips
+            rosterEl.innerHTML = list.map(s => `
+                <div class="inline-flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-medium text-white">
+                    <span class="w-2 h-2 rounded-full ${s.color}"></span>
+                    <span>${escapeHtml(s.name)}</span>
+                    <button onclick="removeStudent('${s.id}')" class="ml-1 text-slate-400 hover:text-rose-400 px-1" title="Remove">✕</button>
+                </div>
+            `).join('');
+
+            // 2. Hotseat Single Target Chips
+            hsListEl.innerHTML = list.map(s => {
+                const active = selectedHotseatTarget === s.id;
+                return `
+                    <button onclick="selectHotseatTarget('${s.id}')"
+                        class="px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 ${active ? 'bg-amber-500 text-slate-950 border-amber-400 shadow' : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'}">
+                        ${active ? '🎯 ' : ''}${escapeHtml(s.name)}
+                    </button>
+                `;
+            }).join('');
+
+            // 3. Impostor Multi-Target Chips (1 or 2 max)
+            impListEl.innerHTML = list.map(s => {
+                const active = selectedImpostorTargets.has(s.id);
+                return `
+                    <button onclick="toggleImpostorTarget('${s.id}')"
+                        class="px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 ${active ? 'bg-rose-500 text-white border-rose-400 shadow' : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'}">
+                        ${active ? '🕵️ ' : ''}${escapeHtml(s.name)}
+                    </button>
+                `;
+            }).join('');
+
+            // 4. Whisper Multi-Target Chips
+            whListEl.innerHTML = list.map(s => {
+                const active = selectedWhisperTargets.has(s.id);
+                return `
+                    <button onclick="toggleWhisperTarget('${s.id}')"
+                        class="px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 ${active ? 'bg-purple-600 text-white border-purple-400 shadow' : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'}">
+                        ${active ? '🤫 ' : ''}${escapeHtml(s.name)}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function selectHotseatTarget(id) {
+            selectedHotseatTarget = (selectedHotseatTarget === id) ? null : id;
+            renderHostStudentLists();
+        }
+
+        function toggleImpostorTarget(id) {
+            if (selectedImpostorTargets.has(id)) {
+                selectedImpostorTargets.delete(id);
+            } else {
+                if (selectedImpostorTargets.size >= 2) {
+                    showToast("Max 2 Impostors recommended!");
+                    return;
+                }
+                selectedImpostorTargets.add(id);
+            }
+            renderHostStudentLists();
+        }
+
+        function toggleWhisperTarget(id) {
+            if (selectedWhisperTargets.has(id)) {
+                selectedWhisperTargets.delete(id);
+            } else {
+                selectedWhisperTargets.add(id);
+            }
+            renderHostStudentLists();
+        }
+
+        // ==================== HOST TABS & CONTROLS ====================
+        function switchHostTab(tab) {
+            ['hotseat', 'impostor', 'whisper'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                const panel = document.getElementById(`panel-${t}`);
+                if (t === tab) {
+                    btn.className = "py-2.5 px-2 rounded-xl font-game font-bold text-xs sm:text-sm bg-amber-500 text-slate-950 shadow transition";
+                    panel.classList.remove('hidden');
+                } else {
+                    btn.className = "py-2.5 px-2 rounded-xl font-game font-bold text-xs sm:text-sm text-slate-400 hover:text-white transition";
+                    panel.classList.add('hidden');
+                }
+            });
+        }
+
+        function toggleSimulator() {
+            simulatorOpen = !simulatorOpen;
+            const box = document.getElementById('simulatorBox');
+            const btn = document.getElementById('simToggleBtn');
+            if (simulatorOpen) {
+                box.classList.remove('hidden');
+                btn.textContent = "🧪 Close Preview";
+            } else {
+                box.classList.add('hidden');
+                btn.textContent = "🧪 Preview Student View";
+            }
+        }
+
+        function resetAllScreens() {
+            publishEvent('command', { type: 'RESET', ts: Date.now() });
+            showToast("All student screens reset to waiting lobby.");
+        }
+
+        // --- GAME 1: HOT SEAT & ROULETTE ---
+        function sendDirectHotseat() {
+            const q = document.getElementById('hotseatCustomInput').value.trim();
+            if (!q) return showToast("Please select or type a question!");
+            if (!selectedHotseatTarget || !students[selectedHotseatTarget]) {
+                return showToast("Tap 1 student from the list first!");
+            }
+            const targetStudent = students[selectedHotseatTarget];
+            publishEvent('command', {
+                type: 'HOTSEAT_DIRECT',
+                targetId: targetStudent.id,
+                targetName: targetStudent.name,
+                question: q,
+                ts: Date.now()
+            });
+            showToast(`Sent Hot Seat card to ${targetStudent.name}!`);
+        }
+
+        function triggerRoulette() {
+            const q = document.getElementById('hotseatCustomInput').value.trim();
+            if (!q) return showToast("Please select or type a question!");
+            const list = Object.values(students);
+            if (list.length === 0) return showToast("Need at least 1 connected student!");
+
+            // Pick winner randomly (or preview simulator if no real students)
+            const winner = list[Math.floor(Math.random() * list.length)];
+            publishEvent('command', {
+                type: 'HOTSEAT_ROULETTE',
+                winnerId: winner.id,
+                winnerName: winner.name,
+                question: q,
+                durationMs: 5000,
+                ts: Date.now()
+            });
+            showToast(`🎲 Roulette spinning! Winner will be ${winner.name}`);
+        }
+
+        // --- GAME 2: IMPOSTOR ---
+        function setImpostorMode(mode) {
+            impostorMode = mode;
+            const rBtn = document.getElementById('impModeRandom');
+            const mBtn = document.getElementById('impModeManual');
+            const mBox = document.getElementById('impostorManualBox');
+
+            if (mode === 'random') {
+                rBtn.className = "flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs transition";
+                mBtn.className = "flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs transition";
+                mBox.classList.add('hidden');
+            } else {
+                mBtn.className = "flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs transition";
+                rBtn.className = "flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs transition";
+                mBox.classList.remove('hidden');
+            }
+        }
+
+        function startImpostorGame() {
+            const citizenWord = document.getElementById('citizenWordInput').value.trim();
+            const impostorWord = document.getElementById('impostorWordInput').value.trim();
+            if (!citizenWord || !impostorWord) return showToast("Both words are required!");
+
+            const list = Object.values(students);
+            if (list.length === 0) return showToast("Need at least 1 connected student!");
+
+            let impostorIds = [];
+            if (impostorMode === 'random') {
+                const chosen = list[Math.floor(Math.random() * list.length)];
+                impostorIds = [chosen.id];
+            } else {
+                impostorIds = Array.from(selectedImpostorTargets).filter(id => students[id]);
+                if (impostorIds.length === 0) {
+                    return showToast("Please tap at least 1 student to be the Impostor!");
+                }
+            }
+
+            // Build word map for every student
+            const assignments = {};
+            list.forEach(s => {
+                assignments[s.id] = impostorIds.includes(s.id) ? impostorWord : citizenWord;
+            });
+
+            publishEvent('command', {
+                type: 'IMPOSTOR_DEAL',
+                assignments: assignments,
+                ts: Date.now()
+            });
+
+            // Show Teacher Cheat Sheet
+            const impNames = impostorIds.map(id => students[id]?.name).join(', ');
+            const sheet = document.getElementById('impostorCheatSheet');
+            const content = document.getElementById('cheatSheetContent');
+            sheet.classList.remove('hidden');
+            content.innerHTML = `
+                <div>🕵️ <b>Impostor (${impostorWord}):</b> <span class="text-rose-400 font-bold">${escapeHtml(impNames)}</span></div>
+                <div>👥 <b>Citizens (${citizenWord}):</b> <span class="text-emerald-400">${list.length - impostorIds.length} students</span></div>
+            `;
+            showToast("Secret words sent to all phones!");
+        }
+
+        // --- GAME 3: WHISPER GAME ---
+        function sendWhisperCards() {
+            const sentence = document.getElementById('whisperCustomInput').value.trim();
+            if (!sentence) return showToast("Please select or type a whisper sentence!");
+
+            const targets = Array.from(selectedWhisperTargets).filter(id => students[id]);
+            if (targets.length === 0) {
+                return showToast("Select 1 or 2 students (e.g. Team Captains) first!");
+            }
+
+            publishEvent('command', {
+                type: 'WHISPER_SEND',
+                targetIds: targets,
+                sentence: sentence,
+                ts: Date.now()
+            });
+
+            const names = targets.map(id => students[id]?.name).join(' & ');
+            showToast(`Whisper card sent secretly to ${names}!`);
+        }
+
+        // ==================== STUDENT SCREEN RENDERER ====================
+        function renderStudentStageFromCommand(cmd, viewerId, container) {
+            clearInterval(rouletteTimer);
+            cardHidden = false;
+
+            // 0. RESET
+            if (cmd.type === 'RESET') {
+                container.innerHTML = `
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-8 text-center shadow-xl animate-card-pop">
+                        <div class="text-4xl mb-4">☕</div>
+                        <h2 class="font-game text-2xl font-bold text-white mb-2">Ready for Next Round!</h2>
+                        <p class="text-slate-400 text-sm">Waiting for teacher to start the next game...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 1A. HOT SEAT DIRECT
+            if (cmd.type === 'HOTSEAT_DIRECT') {
+                const isMe = (viewerId === cmd.targetId) || (viewerId === 'sim_preview_user');
+                if (isMe) {
+                    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                    AudioEngine.playWin();
+                    container.innerHTML = `
+                        <div class="bg-gradient-to-br from-amber-500 to-orange-600 text-slate-950 rounded-3xl p-6 shadow-2xl animate-card-pop">
+                            <div class="inline-block px-3 py-1 rounded-full bg-slate-950/20 text-xs font-extrabold uppercase tracking-wider mb-3">
+                                🔥 You are in the Hot Seat!
+                            </div>
+                            <h2 class="font-game text-2xl sm:text-3xl font-bold leading-snug mb-6">
+                                "${escapeHtml(cmd.question)}"
+                            </h2>
+                            <div class="bg-slate-950/15 rounded-2xl p-3 text-xs font-semibold">
+                                💡 Speak clearly in English! You can use 1 "Pass" if needed.
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    AudioEngine.playSafe();
+                    container.innerHTML = `
+                        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-7 text-center shadow-xl animate-card-pop">
+                            <div class="text-4xl mb-3">👂</div>
+                            <span class="inline-block px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold mb-2">
+                                Listening Mode
+                            </span>
+                            <h3 class="font-game text-xl font-bold text-white mb-2">
+                                ${escapeHtml(cmd.targetName)} is in the Hot Seat!
+                            </h3>
+                            <p class="text-slate-400 text-sm">Listen closely to their answer!</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+
+            // 1B. HOT SEAT RANDOM BALL ROULETTE
+            if (cmd.type === 'HOTSEAT_ROULETTE') {
+                const ballColors = [
+                    "from-rose-500 to-pink-600",
+                    "from-amber-400 to-orange-500",
+                    "from-emerald-400 to-teal-600",
+                    "from-cyan-400 to-blue-600",
+                    "from-purple-500 to-indigo-600"
+                ];
+                let step = 0;
+
+                container.innerHTML = `
+                    <div class="bg-slate-900 border border-slate-700 rounded-3xl p-8 text-center shadow-2xl">
+                        <div id="rouletteBall" class="w-24 h-24 rounded-full bg-gradient-to-br ${ballColors[0]} mx-auto mb-6 shadow-2xl flex items-center justify-center text-4xl animate-ball">
+                            ⚽
+                        </div>
+                        <h2 class="font-game text-2xl font-bold text-white mb-1">Spinning Roulette...</h2>
+                        <p class="text-slate-400 text-sm">Who will get the Hot Seat card?</p>
+                    </div>
+                `;
+
+                rouletteTimer = setInterval(() => {
+                    step++;
+                    AudioEngine.playTick(step);
+                    const ball = document.getElementById('rouletteBall');
+                    if (ball) {
+                        const c = ballColors[step % ballColors.length];
+                        ball.className = `w-24 h-24 rounded-full bg-gradient-to-br ${c} mx-auto mb-6 shadow-2xl flex items-center justify-center text-4xl animate-ball`;
+                    }
+                }, 320);
+
+                setTimeout(() => {
+                    clearInterval(rouletteTimer);
+                    const isWinner = (viewerId === cmd.winnerId) || (viewerId === 'sim_preview_user');
+                    if (isWinner) {
+                        if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+                        AudioEngine.playWin();
+                        container.innerHTML = `
+                            <div class="bg-gradient-to-br from-emerald-500 to-teal-600 text-slate-950 rounded-3xl p-6 shadow-2xl animate-win-glow animate-card-pop">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="px-3 py-1 rounded-full bg-slate-950/20 text-xs font-extrabold uppercase">
+                                        ⚽ Selected!
+                                    </span>
+                                    <span class="text-2xl">🎉</span>
+                                </div>
+                                <h2 class="font-game text-2xl sm:text-3xl font-bold leading-snug mb-5">
+                                    "${escapeHtml(cmd.question)}"
+                                </h2>
+                                <div class="bg-slate-950/15 rounded-2xl p-3 text-xs font-bold">
+                                    🗣️ Your turn to answer in English!
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        AudioEngine.playSafe();
+                        container.innerHTML = `
+                            <div class="bg-slate-900 border border-sky-500/30 rounded-3xl p-8 text-center shadow-xl animate-card-pop">
+                                <div class="w-16 h-16 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center text-3xl mx-auto mb-4">
+                                    😌
+                                </div>
+                                <h2 class="font-game text-2xl font-bold text-sky-300 mb-2">Phew! You are SAFE!</h2>
+                                <p class="text-slate-300 text-sm mb-3">
+                                    The ball landed on <b class="text-amber-400">${escapeHtml(cmd.winnerName)}</b>!
+                                </p>
+                                <p class="text-xs text-slate-500">Listen to their answer and ask a follow-up question!</p>
+                            </div>
+                        `;
+                    }
+                }, cmd.durationMs || 5000);
+                return;
+            }
+
+            // 2. IMPOSTOR SECRET WORD
+            if (cmd.type === 'IMPOSTOR_DEAL') {
+                const words = Object.values(cmd.assignments);
+                const myWord = cmd.assignments[viewerId] || words[0] || "Secret";
+                if (navigator.vibrate) navigator.vibrate(150);
+                AudioEngine.playCardDing();
+
+                container.innerHTML = `
+                    <div class="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-6 text-center shadow-2xl animate-card-pop">
+                        <span class="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold uppercase tracking-wider mb-4">
+                            🕵️ Impostor Game • Your Secret Word
+                        </span>
+
+                        <div id="secretWordBox" onclick="toggleSecretMask()"
+                            class="cursor-pointer bg-slate-950 border border-slate-700 rounded-2xl py-8 px-4 mb-4 transition active:scale-95">
+                            <div id="secretWordText" class="font-game text-4xl font-extrabold text-white tracking-wide">
+                                ${escapeHtml(myWord)}
+                            </div>
+                            <div id="secretMaskHint" class="text-xs text-slate-400 mt-3">
+                                👁️ Tap card to hide from neighbors
+                            </div>
+                        </div>
+
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Describe this word in <b>1 simple English sentence</b> without saying the word itself. Find out who has a different word!
+                        </p>
+                    </div>
+                `;
+                window._currentSecretText = myWord;
+                return;
+            }
+
+            // 3. WHISPER GAME
+            if (cmd.type === 'WHISPER_SEND') {
+                const isTarget = cmd.targetIds.includes(viewerId) || (viewerId === 'sim_preview_user');
+                if (isTarget) {
+                    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                    AudioEngine.playCardDing();
+                    container.innerHTML = `
+                        <div class="bg-gradient-to-br from-purple-900 to-indigo-950 border-2 border-purple-400/50 rounded-3xl p-6 text-center shadow-2xl animate-card-pop">
+                            <span class="inline-block px-3 py-1 rounded-full bg-purple-500/30 text-purple-200 text-xs font-bold uppercase tracking-wider mb-4">
+                                🤫 Secret Whisper Sentence
+                            </span>
+
+                            <div id="secretWordBox" onclick="toggleSecretMask()"
+                                class="cursor-pointer bg-slate-950/90 border border-purple-500/40 rounded-2xl p-6 mb-4 transition active:scale-95">
+                                <div id="secretWordText" class="font-game text-xl sm:text-2xl font-bold text-white leading-relaxed">
+                                    "${escapeHtml(cmd.sentence)}"
+                                </div>
+                                <div id="secretMaskHint" class="text-xs text-purple-300 mt-3">
+                                    👁️ Tap to hide after memorizing!
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-purple-200">
+                                Memorize this sentence, hide your screen, and whisper it softly to the next teammate!
+                            </p>
+                        </div>
+                    `;
+                    window._currentSecretText = `"${cmd.sentence}"`;
+                } else {
+                    AudioEngine.playSafe();
+                    container.innerHTML = `
+                        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-xl animate-card-pop">
+                            <div class="text-4xl mb-3">🤫</div>
+                            <h3 class="font-game text-xl font-bold text-purple-300 mb-2">Whisper Game in Progress!</h3>
+                            <p class="text-slate-400 text-sm leading-relaxed">
+                                Keep quiet and get ready! Wait for your teammate to whisper the secret English sentence to you.
+                            </p>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function toggleSecretMask() {
+            const textEl = document.getElementById('secretWordText');
+            const hintEl = document.getElementById('secretMaskHint');
+            if (!textEl) return;
+            cardHidden = !cardHidden;
+            if (cardHidden) {
+                textEl.textContent = "🙈 ••••••••";
+                textEl.classList.add('text-slate-500');
+                hintEl.textContent = "👁️ Tap card to reveal again";
+            } else {
+                textEl.textContent = window._currentSecretText || "";
+                textEl.classList.remove('text-slate-500');
+                hintEl.textContent = "👁️ Tap card to hide from neighbors";
+            }
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+    </script>
+</body>
+</html>
